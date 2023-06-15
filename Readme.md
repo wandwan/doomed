@@ -10,5 +10,5 @@ python ./DataProcessing/datapipe.py
 ```
 Then run:
 ```
-python ./trainPip.py
+python ./trainPipe.py
 ```
