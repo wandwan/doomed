@@ -9,9 +9,6 @@ from DataProcessing.convToNum import convert_to_numeric
 # Read in input file as a dataframe
 df = pd.read_csv("data/train.csv")
 
-# Drop the "Id" column
-df = df.drop("Id", axis=1)
-
 # Convert non-numeric columns to numeric
 df = convert_to_numeric(df)
 
