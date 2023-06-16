@@ -14,12 +14,12 @@ def generate_pairs(features, labels):
     
     # Define a function to generate pairs for a given row
     def generate_pairs_for_row(i):
-        row_pairs = np.empty((n, features.shape[1]))
+        row_pairs = np.empty((n, 4 * features.shape[1]))
         row_labels = np.zeros((n, 2), dtype=np.int32)
 
         for j in range(n):
-            # Perform element-wise addition, subtraction, and multiplication of the features of two rows
-            row_pairs[j] = np.concatenate([features[i] + features[j], features[i] - features[j], features[i] * features[j]])
+            # Perform element-wise addition, subtraction, multiplication, and division of the features of two rows
+            row_pairs[j] = np.concatenate([features[i] + features[j], features[i] - features[j], features[i] * features[j], features[i] / (features[j] + 1)])
 
             # Add the XOR of the two classes to the labels array
             row_labels[j][labels[i] ^ labels[j]] = 1
