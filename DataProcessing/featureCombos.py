@@ -59,6 +59,9 @@ print(len(combos))
 # Calculate correlation scores between generated features and df["Class"]
 from scipy.stats import pointbiserialr
 
+
+df[df['Class']==0]['FE'].plot(kind='density')
+
 col_corrs = {}
 for col in df.columns:
     if col not in ["Id", "Class"]:
@@ -66,22 +69,43 @@ for col in df.columns:
         col_corrs[col] = corr
 import re
 corr_scores = []
+mapper = {}
 for col in combos:
     corr, _ = pointbiserialr(col[1], df["Class"])
     name1, name2 = re.split("/|\*", col[0])
     name1, name2 = name1[:2:], name2[:2:]
-    corr_scores.append((col[0], abs(corr) - max(col_corrs[name1], col_corrs[name2])))
+    mapper[col[0]] = col[1]
+    corr_scores.append((col[0], abs(corr) ** 2 - (max(abs(col_corrs[name1]), abs(col_corrs[name2])))**2))
 corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "Correlation"]).sort_values(by="Correlation", ascending=False).reset_index(drop=True)
+
+import seaborn as sns
+for idx, row in corr_scores.iterrows():
+    if idx > 10:
+        break
+    plt.plot(mapper[row["Feature"]], df["Class"], kind="density")
+    name1, name2 = re.split("/|\*", row["Feature"])
+    name1, name2 = name1[:2:], name2[:2:]
+    plt.plot(df[name1], df["Class"], kind="density")
+    plt.plot(df[name2], df["Class"], kind="density")
+    plt.show()
+    plt.figure()
+
 
 print(corr_scores)
 corr_scores.to_csv("out.csv",index=True)
 
 import csv
-with open('mycsvfile.csv', 'w') as f:  # You will need 'wb' mode in Python 2.x
+with open('corrs.csv', 'w') as f:  # You will need 'wb' mode in Python 2.x
     w = csv.DictWriter(f, col_corrs.keys())
     w.writeheader()
     w.writerow(col_corrs)
     
+for idx, row in corr_scores.iterrows():
+    name1, name2 = re.split("/|\*", row["Feature"])
+    name1, name2 = name1[:2:], name2[:2:]
+    print("Feature: {}, Correlation: {}, individual: {}, {}".format(row["Feature"], row["Correlation"], col_corrs[name1], col_corrs[name2]))
+    if(idx > 200):
+        break
     
 
 # Plot the top 200 linear correlation scores as a line plot
