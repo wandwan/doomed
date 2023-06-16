@@ -48,14 +48,14 @@ def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
 
     # Train XGBoost model
     xgb_params = {
-            'learning_rate': 0.113327571405248,
+            'learning_rate': 0.313327571405248,
             'lambda': 0.0000263894617720096,
             'alpha': 0.000463768723479341,
             'max_depth': 30,
             'max_leaves': 600,
             'eta': 2.09477807126539E-06,
             'gamma': 0.000847289463422307,
-            'grow_policy': 'lossguide',
+            'grow_policy': 'depthwise',
             'n_jobs': -1,
             'objective': 'binary:logistic',
             'eval_metric': 'logloss',

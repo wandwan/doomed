@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-def generate_pairs(features, labels, percent=1.0):
+def generate_pairs(features, labels):
     # Get the number of rows in the features array
     n = features.shape[0]
     
@@ -14,16 +14,16 @@ def generate_pairs(features, labels, percent=1.0):
     
     # Define a function to generate pairs for a given row
     def generate_pairs_for_row(i):
-        row_pairs = np.empty((n, 2 * features.shape[1]))
+        row_pairs = np.empty((n, features.shape[1]))
         row_labels = np.zeros((n, 2), dtype=np.int32)
-        
+
         for j in range(n):
-            # Add the pair of rows to the numpy array
-            row_pairs[j] = np.concatenate([features[i], features[j]])
-            
+            # Perform element-wise addition, subtraction, and multiplication of the features of two rows
+            row_pairs[j] = np.concatenate([features[i] + features[j], features[i] - features[j], features[i] * features[j]])
+
             # Add the XOR of the two classes to the labels array
             row_labels[j][labels[i] ^ labels[j]] = 1
-        
+
         return row_pairs, row_labels
     
     # Generate pairs for each row in parallel
