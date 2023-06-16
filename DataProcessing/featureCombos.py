@@ -25,35 +25,64 @@ def generate_combo_features(df):
          combos = []
          for feature1 in features:
               for feature2 in features:
-                if feature1 != feature2:
-                     combos.append((feature1 + '/' + feature2, df[feature1] / df[feature2]))
+                if feature1 != feature2 and feature1 not in ["Id", "Class"] and feature2 not in ["Id", "Class"]:
+                     combos.append((feature1 + '/' + feature2, (df[feature1] / df[feature2]).replace([np.inf, -np.inf], 0)))
                      combos.append((feature1 + '*' + feature2, df[feature1] * df[feature2]))
                      combos.append((feature1 + '*' + feature2 + '_2', df[feature1] * df[feature2] ** 2))
-                     combos.append((feature1 + '_2/' + feature2, df[feature1] ** 2 / df[feature2]))
-                     combos.append((feature1 + '/' + feature2 + '_2', df[feature1] / df[feature2] ** 2))
+                     combos.append((feature1 + '_2/' + feature2, (df[feature1] ** 2 / df[feature2]).replace([np.inf, -np.inf], 0)))
+                     combos.append((feature1 + '/' + feature2 + '_2', (df[feature1] / df[feature2] ** 2).replace([np.inf, -np.inf], 0)))
                      combos.append((feature1 + '_2*' + feature2 + '_2', df[feature1] ** 2 * df[feature2] ** 2))
-         combos = list(set(combos))
          return combos
 
 
 # Read in train.csv
 df = pd.read_csv("data/train.csv")
 
+# Remove whitespace from column names
+df.columns = df.columns.str.replace(' ', '')
+
+from convToNum import convert_to_numeric
+# Convert all columns to numbers
+df = convert_to_numeric(df)
+
+# Fill nan's
+from fillNan import fill_na_with_kmeans
+df = fill_na_with_kmeans(df)
+
 # Generate feature combinations
 combos = generate_combo_features(df)
 
-# Add columns with feature combinations
-df = combo_features(df, combos)
+
+print("finished generating combos")
+print(len(combos))
 
 # Calculate correlation scores between generated features and df["Class"]
 from scipy.stats import pointbiserialr
 
-corr_scores = []
+col_corrs = {}
 for col in df.columns:
-    if col != "Class":
+    if col not in ["Id", "Class"]:
         corr, _ = pointbiserialr(df[col], df["Class"])
-        corr_scores.append((col, abs(corr)))
-# corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "Correlation"]).sort_values(by="Correlation", ascending=False).reset_index(drop=True)
+        col_corrs[col] = corr
+import re
+corr_scores = []
+for col in combos:
+    corr, _ = pointbiserialr(col[1], df["Class"])
+    name1, name2 = re.split("/|\*", col[0])
+    name1, name2 = name1[:2:], name2[:2:]
+    corr_scores.append((col[0], abs(corr) - max(col_corrs[name1], col_corrs[name2])))
+corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "Correlation"]).sort_values(by="Correlation", ascending=False).reset_index(drop=True)
+
+print(corr_scores)
+corr_scores.to_csv("out.csv",index=True)
+
+import csv
+with open('mycsvfile.csv', 'w') as f:  # You will need 'wb' mode in Python 2.x
+    w = csv.DictWriter(f, col_corrs.keys())
+    w.writeheader()
+    w.writerow(col_corrs)
+    
+    
 
 # Plot the top 200 linear correlation scores as a line plot
 corr_scores[:200].plot(kind="line")
