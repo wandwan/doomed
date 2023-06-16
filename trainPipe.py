@@ -41,6 +41,10 @@ def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     # Generate pairs
     X_train, Y_train = generate_pairs(X_train, Y_train)
     X_val, Y_val = generate_pairs(X_val, Y_val)
+    # Shuffle X_train and Y_train together
+    perm = np.random.permutation(len(X_train))
+    X_train = X_train[perm]
+    Y_train = Y_train[perm]
 
     # Train XGBoost model
     xgb_params = {

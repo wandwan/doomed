@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-def generate_pairs(features, labels):
+def generate_pairs(features, labels, percent=1.0):
     # Get the number of rows in the features array
     n = features.shape[0]
     
