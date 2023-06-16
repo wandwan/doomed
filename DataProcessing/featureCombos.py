@@ -60,7 +60,6 @@ print(len(combos))
 from scipy.stats import pointbiserialr
 
 
-df[df['Class']==0]['FE'].plot(kind='density')
 
 col_corrs = {}
 for col in df.columns:
@@ -79,16 +78,33 @@ for col in combos:
 corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "Correlation"]).sort_values(by="Correlation", ascending=False).reset_index(drop=True)
 
 import seaborn as sns
+figsize = (6*6, 20)
+fig = plt.figure(figsize=figsize)
 for idx, row in corr_scores.iterrows():
-    if idx > 10:
+    if idx > 9:
         break
-    plt.plot(mapper[row["Feature"]], df["Class"], kind="density")
+    ax = plt.subplot(5,6, 3 * idx + 1)
+    copy = {"Feature": mapper[row["Feature"]], "Class": df["Class"]}
+    copy = pd.DataFrame(copy)
+    
+    
+    sns.kdeplot(copy[copy["Class"] == 1]["Feature"])
+    sns.kdeplot(copy[copy["Class"] == 0]["Feature"])
+    ax.set_title(f'{row["Feature"]}')
+
     name1, name2 = re.split("/|\*", row["Feature"])
     name1, name2 = name1[:2:], name2[:2:]
-    plt.plot(df[name1], df["Class"], kind="density")
-    plt.plot(df[name2], df["Class"], kind="density")
-    plt.show()
-    plt.figure()
+    
+    ax = plt.subplot(5,6, 3 * idx + 2)
+    sns.kdeplot(df[df["Class"] == 1][name1])
+    sns.kdeplot(df[df["Class"] == 0][name1])
+    ax.set_title(f'{name1}')
+    ax = plt.subplot(5,6, 3 * idx + 3)
+    sns.kdeplot(df[df["Class"] == 1][name2])
+    sns.kdeplot(df[df["Class"] == 0][name2])
+    ax.set_title(f'{name1}')
+plt.tight_layout()
+plt.show()
 
 
 print(corr_scores)
