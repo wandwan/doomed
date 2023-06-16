@@ -26,18 +26,18 @@ def generate_combo_features(df):
          for feature1 in features:
               for feature2 in features:
                 if feature1 != feature2:
-                     combos.append(feature1 + '/' + feature2)
-                     combos.append(feature1 + '*' + feature2)
-                     combos.append(feature1 + '*' + feature2 + '_2')
-                     combos.append(feature1 + '_2/' + feature2)
-                     combos.append(feature1 + '/' + feature2 + '_2')
-                     combos.append(feature1 + '_2*' + feature2 + '_2')
+                     combos.append((feature1 + '/' + feature2, df[feature1] / df[feature2]))
+                     combos.append((feature1 + '*' + feature2, df[feature1] * df[feature2]))
+                     combos.append((feature1 + '*' + feature2 + '_2', df[feature1] * df[feature2] ** 2))
+                     combos.append((feature1 + '_2/' + feature2, df[feature1] ** 2 / df[feature2]))
+                     combos.append((feature1 + '/' + feature2 + '_2', df[feature1] / df[feature2] ** 2))
+                     combos.append((feature1 + '_2*' + feature2 + '_2', df[feature1] ** 2 * df[feature2] ** 2))
          combos = list(set(combos))
          return combos
 
 
 # Read in train.csv
-df = pd.read_csv("train.csv")
+df = pd.read_csv("data/train.csv")
 
 # Generate feature combinations
 combos = generate_combo_features(df)
