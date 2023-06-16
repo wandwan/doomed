@@ -4,6 +4,7 @@ from fillNan import fill_na_with_kmeans
 from makeInt import convert_to_integer
 from makeNorm import normalize_df
 from featureCombos import combo_features
+from correlatedProcess import remove_correlated_columns
 from generatePairs import generate_pairs
 
 input_file = "./data/train.csv"
@@ -35,6 +36,9 @@ df = normalize_df(df, ['Class', 'Id', 'EJ'])
 
 # Remove whitespace from column names
 df.columns = df.columns.str.replace(' ', '')
+
+# Remove correlated columns
+df = remove_correlated_columns(df)
 
 # Create new features
 df = combo_features(df, selected)
