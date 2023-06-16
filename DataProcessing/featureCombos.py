@@ -59,18 +59,16 @@ print(len(combos))
 # Calculate correlation scores between generated features and df["Class"]
 from scipy.stats import pointbiserialr
 
-
-
 col_corrs = {}
 for col in df.columns:
     if col not in ["Id", "Class"]:
-        corr, _ = pointbiserialr(df[col], df["Class"])
+        corr, _ = pointbiserialr(df["Class"], df[col])
         col_corrs[col] = corr
 import re
 corr_scores = []
 mapper = {}
 for col in combos:
-    corr, _ = pointbiserialr(col[1], df["Class"])
+    corr, _ = pointbiserialr(df["Class"], col[1])
     name1, name2 = re.split("/|\*", col[0])
     name1, name2 = name1[:2:], name2[:2:]
     mapper[col[0]] = col[1]
@@ -81,28 +79,32 @@ import seaborn as sns
 figsize = (6*6, 20)
 fig = plt.figure(figsize=figsize)
 for idx, row in corr_scores.iterrows():
-    if idx > 9:
+    if idx > 29:
         break
     ax = plt.subplot(5,6, 3 * idx + 1)
     copy = {"Feature": mapper[row["Feature"]], "Class": df["Class"]}
     copy = pd.DataFrame(copy)
     
     
-    sns.kdeplot(copy[copy["Class"] == 1]["Feature"])
-    sns.kdeplot(copy[copy["Class"] == 0]["Feature"])
-    ax.set_title(f'{row["Feature"]}')
+    sns.kdeplot(copy[copy["Class"] == 1]["Feature"], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    sns.kdeplot(copy[copy["Class"] == 0]["Feature"], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    ax.set_title(f'{row["Feature"]}', loc='right')
 
-    name1, name2 = re.split("/|\*", row["Feature"])
-    name1, name2 = name1[:2:], name2[:2:]
+    # name1, name2 = re.split("/|\*", row["Feature"])
+    # name1, name2 = name1[:2:], name2[:2:]
     
-    ax = plt.subplot(5,6, 3 * idx + 2)
-    sns.kdeplot(df[df["Class"] == 1][name1])
-    sns.kdeplot(df[df["Class"] == 0][name1])
-    ax.set_title(f'{name1}')
-    ax = plt.subplot(5,6, 3 * idx + 3)
-    sns.kdeplot(df[df["Class"] == 1][name2])
-    sns.kdeplot(df[df["Class"] == 0][name2])
-    ax.set_title(f'{name1}')
+    # ax = plt.subplot(5,6, 3 * idx + 2)
+    # sns.kdeplot(df[df["Class"] == 1][name1], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    # sns.kdeplot(df[df["Class"] == 0][name1], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    # ax.set_title(f'{name1}', loc='right')
+    # ax = plt.subplot(5,6, 3 * idx + 3)
+    # sns.kdeplot(df[df["Class"] == 1][name2], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    # sns.kdeplot(df[df["Class"] == 0][name2], fill=True, palette=['#9E3F00', 'red'], legend=False)
+    # ax.set_title(f'{name2}', loc='right')
+    
+
+fig.suptitle(f'Features vs Target\n\n\n', ha='center',  fontweight='bold', fontsize=21)
+fig.legend([1, 0], loc='upper center', bbox_to_anchor=(0.5, 0.96), fontsize=21, ncol=3)
 plt.tight_layout()
 plt.show()
 
