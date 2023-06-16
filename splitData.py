@@ -10,8 +10,7 @@ def split_data(data, n_folds=5, random_state=42):
     for train_index, test_index in skf.split(features, targets):
         X_train, X_test = features.iloc[train_index], features.iloc[test_index]
         y_train, y_test = targets.iloc[train_index], targets.iloc[test_index]
-        folds.append((X_train, y_train))
-    return folds
+        yield X_train, X_test, y_train, y_test
 
 def split_numpy_data(X, y, n_folds=5, random_state=42, stratify=True):
     ### Split data into n_folds folds
