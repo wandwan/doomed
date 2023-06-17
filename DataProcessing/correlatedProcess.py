@@ -6,7 +6,7 @@ def remove_correlated_columns(df):
     corr_matrix = df.corr().abs()
     
     # Select upper triangle of correlation matrix
-    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.float32))
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
     
     # Find index of feature columns with correlation greater than 0.95
     to_drop = [column for column in upper.columns if any(upper[column] >= 0.95)]

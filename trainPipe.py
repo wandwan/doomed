@@ -9,7 +9,7 @@ import re
 # Read in data
 data_df = pd.read_csv('./data/cleaned_train.csv')
 
-def train(data_df, model_function, n_iterations=100, folds=5, stratify=True):
+def train(data_df, model_function, n_iterations=100000, folds=5, stratify=True):
     # Use only 100 rows for testing
     # data_df = data_df[:300]
     i = 0
@@ -28,12 +28,12 @@ def train(data_df, model_function, n_iterations=100, folds=5, stratify=True):
         # print('Accuracy:', accuracy)
 
         # Graph train and validation loss
-        plt.title('Train and Validation Loss for fold ' + str(i))
-        i += 1
-        plt.plot(train_loss, label='Train Loss')
-        plt.plot(val_loss, label='Validation Loss')
-        plt.legend()
-        plt.show()
+        # plt.title('Train and Validation Loss for fold ' + str(i))
+        # i += 1
+        # plt.plot(train_loss, label='Train Loss')
+        # plt.plot(val_loss, label='Validation Loss')
+        # plt.legend()
+        # plt.show()
     
 def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     from DataProcessing.generatePairs import generate_pairs
@@ -48,17 +48,15 @@ def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
 
     # Train XGBoost model
     xgb_params = {
-            'learning_rate': 0.313327571405248,
-            'lambda': 0.0000263894617720096,
-            'alpha': 0.000463768723479341,
-            'max_depth': 30,
-            'max_leaves': 600,
-            'eta': 2.09477807126539E-06,
-            'gamma': 0.000847289463422307,
-            'grow_policy': 'depthwise',
+            'learning_rate': 0.03,
+            'max_depth': 7,
+            'lambda': 1.3,
+            'alpha':.2,
+            'colsample_bytree':.4,
+            'grow_policy': 'lossguide',
             'n_jobs': -1,
             'objective': 'binary:logistic',
-            'eval_metric': 'logloss',
+            
             'verbosity': 0,
             'random_state': 1234123579,
         }
@@ -68,7 +66,7 @@ def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     res = {}
 
     evallist = [(dtrain, 'train'), (dval, 'validation')]
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=30, evals_result=res)
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=100, evals_result=res)
 
     # Make predictions on validation set
     y_pred = model.predict(dval)
