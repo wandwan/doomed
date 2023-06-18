@@ -30,14 +30,15 @@ def generate_pairs(features, labels, fraction=.04, add_noise=True):
                 row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / (features[j] + 1), features[j]])
             # Add the XOR of the two classes to the labels array
             row_labels[idx][labels[i] ^ labels[j]] = 1
-        return row_pairs, row_labels
+        return row_pairs, row_labels, i
     
     # Generate pairs for each row in parallel
     results = Parallel(n_jobs=-1)(delayed(generate_pairs_for_row)(i, fraction) for i in range(n))
+    results.sort(key=lambda val: val[2])
     
     # Combine the results into the final pairs and labels arrays
     idx = 0
-    for row_pairs, row_labels in results:
+    for row_pairs, row_labels, _ in results:
         pairs[idx:idx+frac] = row_pairs
         labels_array[idx:idx+frac] = row_labels
         idx += frac

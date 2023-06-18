@@ -78,7 +78,7 @@ def train(df : pd.DataFrame,
     Returns:
         list: A list of models from each fold
     """
-    
+    np.random.seed(42)
     models = []
     scores = []
     losses = []
@@ -151,8 +151,9 @@ def train(df : pd.DataFrame,
     plt.tight_layout()
     
     # Print scores and losses
-    print('Average Validation Score:', np.mean(scores))
-    print('Median Validation Score:', np.median(scores))
+    if score is not None:
+        print('Average Validation Score:', np.mean(scores))
+        print('Median Validation Score:', np.median(scores))
     print('Average Validation Loss:', np.mean(val_loss))
     print('Median Validation Loss:', np.median(val_loss))
     print('Average Training Loss:', np.mean(train_loss))
@@ -168,7 +169,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     X_train, Y_train = generate_pairs(X_train, Y_train, add_noise=False)
     X_val, Y_val = generate_pairs(X_val, Y_val, add_noise=False)
     # Shuffle X_train and Y_train together
-    perm = np.random.permutation(len(X_train))
+    perm = np.random.RandomState(seed=42).permutation(len(X_train))
     X_train = X_train[perm]
     Y_train = Y_train[perm]
     
