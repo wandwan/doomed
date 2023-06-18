@@ -3,7 +3,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from random import sample
 
-def generate_pairs(features, labels, fraction=.03):
+def generate_pairs(features, labels, fraction=.038, add_noise=True):
     # Get the number of rows in the features array
     n = features.shape[0]
     frac = ((int) (n * fraction))
@@ -19,12 +19,17 @@ def generate_pairs(features, labels, fraction=.03):
         row_labels = np.zeros((frac, 2), dtype=np.int32)
         kept = sample(range(0,n),(int) (n * fraction))
         for idx, j in enumerate(kept):
-            # Perform element-wise addition, subtraction, and multiplication of the features of two rows
-            row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / (features[j] + 1), features[j]])
-
+            if add_noise:
+                # Add noise to the features
+                noise = np.random.normal(loc=0.0, scale=0.15, size=features.shape[1])
+                features_i = features[i] * (1 + noise)
+                features_j = features[j] * (1 + noise)
+                row_pairs[idx] = np.concatenate([features_i - features_j, features_i / (features_j + 1), features_j])
+            else:
+                # Perform element-wise addition, subtraction, and multiplication of the features of two rows
+                row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / (features[j] + 1), features[j]])
             # Add the XOR of the two classes to the labels array
             row_labels[idx][labels[i] ^ labels[j]] = 1
-
         return row_pairs, row_labels
     
     # Generate pairs for each row in parallel

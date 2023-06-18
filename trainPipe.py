@@ -3,42 +3,32 @@ import numpy as np
 from splitData import split_data
 import pandas as pd
 import xgboost as xgb
-from typing import Callable
-import re
+from typing import Callable, Iterable
 
-# Read in data
-data_df = pd.read_csv('./data/cleaned_train.csv')
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from splitData import split_data
-
-def _nFoldCV(df, data_processing_function, model_function, score_function, n_iterations=1000000, n_folds=5, stratify=True, plot_loss_curve=False):
+def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5, stratify=True, plot_loss_curve=False):
     # scores holds floats of scores for each fold
     scores = []
     # losses holds tuples of (train_loss, val_loss)
     losses = []
     # models holds strings of model paths or model objects
     models = []
-    
+    if preprocess is not None:
+        df = preprocess(df)
+    df.drop("Id", axis=1, inplace=True)
     for i in range(n_folds):
-        for X_train_df, X_val_df, Y_train_df, Y_val_df in split_data(df, n_folds=n_folds, stratify=stratify):
-            # Preprocess data
-            X_train, Y_train = data_processing_function(X_train_df, Y_train_df)
-            X_val, Y_val = data_processing_function(X_val_df, Y_val_df)
-            
-            # Target's should be 0-1
-            Y_train = np.round(Y_train_df.to_numpy()).astype(int)
-            Y_val = np.round(Y_val_df.to_numpy()).astype(int)
+        for X_train, X_val, Y_train, Y_val in split_data(df, n_folds=n_folds, stratify=stratify):
+            X_train = X_train.to_numpy(dtype=np.float32)
+            X_val = X_val.to_numpy(dtype=np.float32)
+            Y_train= np.round(Y_train.to_numpy()).astype(int)
+            Y_val = np.round(Y_val.to_numpy()).astype(int)
             
             # Train model
-            train_loss, val_loss, y_pred, model = model_function(X_train, Y_train, X_val, Y_val, n_iterations)
+            train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations)
             
             # Save model, score, and and minimum val_loss
             models.append(model)
-            if score_function is not None:
-                score = score_function(Y_val, y_pred)
+            if score is not None:
+                score = score(Y_val, y_pred)
                 scores.append(score)
             min_idx = np.argmin(np.array(val_loss))
             losses.append((train_loss[min_idx], val_loss[min_idx]))
@@ -55,11 +45,11 @@ def _nFoldCV(df, data_processing_function, model_function, score_function, n_ite
     return models, scores, losses
 
 def train(df : pd.DataFrame, 
-          data_processing_function : Callable[[pd.DataFrame, pd.DataFrame], tuple[pd.DataFrame, pd.DataFrame]],
-          model_function : Callable[[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, int], 
-                                     tuple[list[float], list[float], list[float], list[str|object]]], 
-          score_function : (Callable[[pd.DataFrame, pd.DataFrame], list[float]]|None)=None, 
-          inference_function:(Callable[[pd.DataFrame, str|object], pd.DataFrame]|None) = None, 
+          model : Callable[[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, int], 
+                                     tuple[Iterable[float], Iterable[float], Iterable[float], str|object]],
+          preprocess : Callable[[pd.DataFrame], pd.DataFrame] | None = None, 
+          score : (Callable[[pd.DataFrame, pd.DataFrame], list[float]] | None)=None, 
+          inference:(Callable[[pd.DataFrame, str|object], pd.DataFrame]|None) = None, 
           n_iterations:int=1000000, n_folds:int=5, stratify:bool=True, 
           leave_one_out:bool=False, plot_loss_curve:bool=False) -> list[str|object]:
     """
@@ -67,10 +57,10 @@ def train(df : pd.DataFrame,
 
     Args:
         df (DataFrame): Dataframe containing the data to train on
-        data_processing_function (function): Function to preprocess data before training. Must take (X,Y) and return (X,Y)
-        model_function (function): Function to train a specific model. Must take (X_train, Y_train, X_val, Y_val, n_iterations) and return 4 values train_loss, val_loss, y_pred, and model. You can return None for y_pred if you don't use score_function.
-        score_function (function, optional): Function to score a prediction. Must take (Y_true, Y_pred) and return score. Defaults to None.
-        inference_function (function, optional): Function for running inference. Must take (X, model) and return predictions. Defaults to None.
+        model (function): Function to train a specific model. Must take (X_train, Y_train, X_val, Y_val, n_iterations) and return 4 values train_loss, val_loss, y_pred, and model. You can return None for y_pred if you don't use score.
+        preprocess (function, optional): Function to preprocess data before training. Must take (X,Y) and return (X,Y)
+        score (function, optional): Function to score a prediction. Must take (Y_true, Y_pred) and return score. Defaults to None.
+        inference (function, optional): Function for running inference. Must take (X, model) and return predictions. Defaults to None.
         n_iterations (int, optional): Maximum number of iterations to train on. Defaults to 1000000.
         n_folds (int, optional): Number of folds for cross-validation. Defaults to 5.
         stratify (bool, optional): Whether or not to use stratified K-Fold over regular K-Fold. Defaults to True.
@@ -78,39 +68,46 @@ def train(df : pd.DataFrame,
         plot_loss_curve (bool, optional): Whether or not to plot a loss curve for each iteration of CV, does not work with leave-one-out testing. Defaults to False.
 
     Raises:
-        ValueError: If leave_one_out is True and inference_function or score_function is None (since we need to make predictions on the test set and score them)
+        ValueError: If leave_one_out is True and inference or score is None (since we need to make predictions on the test set and score them)
 
     Returns:
         list: A list of models from each fold
     """
     
-    
     models = []
     scores = []
     losses = []
+    if preprocess is not None:
+        df = preprocess(df)
     
     # Leave one out testing (for every data point, train on all other data points and test on that data point)
-    if leave_one_out:
-        if inference_function is None or score_function is None:
+    if not leave_one_out:
+        models, scores, losses = _nFoldCV(df, preprocess, model, score, n_iterations, n_folds, stratify, plot_loss_curve)
+        plt.bar(range(len(scores)), scores)
+        plt.title('Validation Scores')
+        plt.xlabel('Fold')
+        plt.ylabel('Score')
+        plt.show()
+    else:
+        if inference is None or score is None:
             raise ValueError('Inference and score functions must be provided for leave one out testing')
         
         loo_scores = []
         for i in range(len(df)):
             # Leave out one data point
-            X_test_df = df.iloc[[i]]
-            Y_test_df = pd.DataFrame(X_test_df.pop('Class'))
+            X_test = df.iloc[[i]]
+            Y_test = pd.DataFrame(X_test.pop('Class'))
             X_df = df.drop(i)
             
             # Overwrite models scores and losses every time since we only leave out one data point
             # so the models should be about the same
-            models, scores, losses = _nFoldCV(X_df, data_processing_function, model_function, score_function, n_iterations, n_folds, stratify)
-            X_test, Y_test = data_processing_function(X_test_df, Y_test_df)
+            models, scores, losses = _nFoldCV(X_df, preprocess, model, score, n_iterations, n_folds, stratify)
             val_loss = [loss[1] for loss in losses]
             best_model_index = val_loss.index(min(val_loss))
             best_model = models[best_model_index]
-            y_pred = inference_function(X_test, best_model)
-            score = score_function(Y_test, y_pred)
-            loo_scores.append(*score)
+            y_pred = inference(X_test, best_model)
+            scores = score(Y_test, y_pred) # type: ignore
+            loo_scores.append(*scores)
         
         # Plot scores
         plt.bar(range(len(df)), loo_scores)
@@ -120,13 +117,7 @@ def train(df : pd.DataFrame,
         plt.show()
         print('Average LOO Score:', np.mean(loo_scores))
         print('Median LOO Score:', np.median(loo_scores))
-    else:
-        models, scores, losses = _nFoldCV(df, data_processing_function, model_function, score_function, n_iterations, n_folds, stratify, plot_loss_curve)
-        plt.bar(range(len(scores)), scores)
-        plt.title('Validation Scores')
-        plt.xlabel('Fold')
-        plt.ylabel('Score')
-        plt.show()
+        
     val_loss = [loss[1] for loss in losses]
     train_loss = [loss[0] for loss in losses]
     
@@ -161,23 +152,23 @@ def train(df : pd.DataFrame,
     # Return models
     return models
     
-def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
+def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     from DataProcessing.generatePairs import generate_pairs
 
     # Generate pairs
-    X_train, Y_train = generate_pairs(X_train, Y_train)
-    X_val, Y_val = generate_pairs(X_val, Y_val)
+    X_train, Y_train = generate_pairs(X_train, Y_train, add_noise=False)
+    X_val, Y_val = generate_pairs(X_val, Y_val, add_noise=False)
     # Shuffle X_train and Y_train together
     perm = np.random.permutation(len(X_train))
     X_train = X_train[perm]
     Y_train = Y_train[perm]
-
+    
     # Train XGBoost model
     xgb_params = {
             'learning_rate': 0.03,
             'max_depth': 7,
-            'lambda': 1.3,
-            'alpha':.2,
+            'lambda': 1.1,
+            'alpha':.6,
             'colsample_bytree':.4,
             'grow_policy': 'lossguide',
             'n_jobs': -1,
@@ -197,5 +188,10 @@ def XGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     # Make predictions on validation set
     y_pred = model.predict(dval)
     y_pred = np.round(y_pred)
-    return res['train']['logloss'], res['validation']['logloss'], y_pred
-train(data_df, XGBoost)
+    return res['train']['logloss'], res['validation']['logloss'], y_pred, model
+
+# Read in data
+data_df = pd.read_csv('./data/cleaned_train.csv')
+
+train(data_df, contrastiveXGBoost)
+    
