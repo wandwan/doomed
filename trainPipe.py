@@ -54,44 +54,31 @@ def _nFoldCV(df, data_processing_function, model_function, score_function, n_ite
                 plt.show(block=False)
     return models, scores, losses
 
-def train(df : pd.DataFrame, data_processing_function : Callable, 
-          model_function : Callable, score_function:(Callable|None)=None, 
-          inference_function:(Callable|None) = None, n_iterations:int=1000000, 
-          n_folds:int=5, stratify:bool=True, leave_one_out:bool=False, plot_loss_curve:bool=False) -> list:
+def train(df : pd.DataFrame, 
+          data_processing_function : Callable[[pd.DataFrame, pd.DataFrame], tuple[pd.DataFrame, pd.DataFrame]],
+          model_function : Callable[[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, int], 
+                                     tuple[list[float], list[float], list[float], list[str|object]]], 
+          score_function : (Callable[[pd.DataFrame, pd.DataFrame], list[float]]|None)=None, 
+          inference_function:(Callable[[pd.DataFrame, str|object], pd.DataFrame]|None) = None, 
+          n_iterations:int=1000000, n_folds:int=5, stratify:bool=True, 
+          leave_one_out:bool=False, plot_loss_curve:bool=False) -> list[str|object]:
     """
     Function to train a model using n-fold cross validation and return the best model from each fold.
-    Complete training pipeline invariant to the type of model used as long as the model function, data processing function, and score function are provided.
-    Supports Leave One Out testing, where for every row in the dataframe, the model is trained on all other rows and tested on that row.
-    If Leave One Out testing is used, the inference and score functions must be provided.
 
     Args:
-        df (DataFrame): Dataframe containing the data to train and possibly test on (if leave_one_out is True)
-        data_processing_function (function): A function that must take in 2 DataFrames (X_before and Y_before) 
-                                             as arguments and returns 2 new DataFrames (X_type_ and Y) where X 
-                                             is the features and Y is the target (X must not contain the target)
-        model_function (function): The main function for actually training a specific model, must take in 5 arguments 
-                                   (X_train, Y_train, X_val, Y_val, n_iterations) 4 DataFrames and an int,
-                                   and return 4 values train_loss, val_loss, y_pred, model. 
-                                   train_loss should be a list of floats of the training losses
-                                   val_loss should be a list of floats of the validation losses
-                                   y_pred should be a list of floats of the predictions on the validation set
-                                   model should be the trained model (as either a string or the actual model object)
-        score_function (function, optional): A function that takes in 2 arguments (Y_true, Y_pred) both of type np arrays and returns a float.
-                                             This function is used to score the model on the validation set. Defaults to None.
-        inference_function (function, optional): A function that takes in 2 arguments (X, model) a dataframe and a model string or object
-                                                 (based on what your model_function returns) and returns an np array of floats.
-                                                 This function is used to make predictions on the test set. Defaults to None.
+        df (DataFrame): Dataframe containing the data to train on
+        data_processing_function (function): Function to preprocess data before training. Must take (X,Y) and return (X,Y)
+        model_function (function): Function to train a specific model. Must take (X_train, Y_train, X_val, Y_val, n_iterations) and return 4 values train_loss, val_loss, y_pred, and model. You can return None for y_pred if you don't use score_function.
+        score_function (function, optional): Function to score a prediction. Must take (Y_true, Y_pred) and return score. Defaults to None.
+        inference_function (function, optional): Function for running inference. Must take (X, model) and return predictions. Defaults to None.
         n_iterations (int, optional): Maximum number of iterations to train on. Defaults to 1000000.
         n_folds (int, optional): Number of folds for cross-validation. Defaults to 5.
-        stratify (bool, optional): whether or not to use stratified K-Fold or regular K-Fold. Defaults to True.
-        leave_one_out (bool, optional): Whether or not to do Leave-one-out testing, if this is set to true, 
-                                        you must pass in an inference and score function. Defaults to False.
-        plot_loss_curve (bool, optional): whether or not to plot a loss curve for each iteration of CV, 
-                                          does not work with leave-one-out testing. Defaults to False.
+        stratify (bool, optional): Whether or not to use stratified K-Fold over regular K-Fold. Defaults to True.
+        leave_one_out (bool, optional): Whether or not to do Leave-one-out testing, if this is set to true, you must pass in an inference and score function. Defaults to False.
+        plot_loss_curve (bool, optional): Whether or not to plot a loss curve for each iteration of CV, does not work with leave-one-out testing. Defaults to False.
 
     Raises:
-        ValueError: If leave_one_out is True and inference_function or score_function is None
-                    (since we need to make predictions on the test set and score them)
+        ValueError: If leave_one_out is True and inference_function or score_function is None (since we need to make predictions on the test set and score them)
 
     Returns:
         list: A list of models from each fold
@@ -111,7 +98,7 @@ def train(df : pd.DataFrame, data_processing_function : Callable,
         for i in range(len(df)):
             # Leave out one data point
             X_test_df = df.iloc[[i]]
-            Y_test_df = X_test_df.pop('Class')
+            Y_test_df = pd.DataFrame(X_test_df.pop('Class'))
             X_df = df.drop(i)
             
             # Overwrite models scores and losses every time since we only leave out one data point
@@ -123,7 +110,7 @@ def train(df : pd.DataFrame, data_processing_function : Callable,
             best_model = models[best_model_index]
             y_pred = inference_function(X_test, best_model)
             score = score_function(Y_test, y_pred)
-            loo_scores.append(score)
+            loo_scores.append(*score)
         
         # Plot scores
         plt.bar(range(len(df)), loo_scores)
