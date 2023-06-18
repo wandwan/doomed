@@ -3,7 +3,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from random import sample
 
-def generate_pairs(features, labels, fraction=.038, add_noise=True):
+def generate_pairs(features, labels, fraction=.04, add_noise=True):
     # Get the number of rows in the features array
     n = features.shape[0]
     frac = ((int) (n * fraction))

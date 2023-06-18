@@ -15,33 +15,38 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
     if preprocess is not None:
         df = preprocess(df)
     df.drop("Id", axis=1, inplace=True)
-    for i in range(n_folds):
-        for X_train, X_val, Y_train, Y_val in split_data(df, n_folds=n_folds, stratify=stratify):
-            X_train = X_train.to_numpy(dtype=np.float32)
-            X_val = X_val.to_numpy(dtype=np.float32)
-            Y_train= np.round(Y_train.to_numpy()).astype(int)
-            Y_val = np.round(Y_val.to_numpy()).astype(int)
-            
-            # Train model
-            train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations)
-            
-            # Save model, score, and and minimum val_loss
-            models.append(model)
-            if score is not None:
-                score = score(Y_val, y_pred)
-                scores.append(score)
-            min_idx = np.argmin(np.array(val_loss))
-            losses.append((train_loss[min_idx], val_loss[min_idx]))
-            
-            # Plot train and validation loss curves
-            if plot_loss_curve:
-                plt.plot(train_loss, label='Train Loss')
-                plt.plot(val_loss, label='Validation Loss')
-                plt.title(f'Fold {i} Loss Curve')
-                plt.xlabel('Iteration')
-                plt.ylabel('Loss')
-                plt.legend()
-                plt.show(block=False)
+    i = 0
+    if plot_loss_curve:
+        fig, axs = plt.subplots(n_folds, 1, figsize=(10, 10))
+    for X_train, X_val, Y_train, Y_val in split_data(df, n_folds=n_folds, stratify=stratify):
+        X_train = X_train.to_numpy(dtype=np.float32)
+        X_val = X_val.to_numpy(dtype=np.float32)
+        Y_train= np.round(Y_train.to_numpy()).astype(int)
+        Y_val = np.round(Y_val.to_numpy()).astype(int)
+        
+        # Train model
+        train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations)
+        
+        # Save model, score, and and minimum val_loss
+        models.append(model)
+        if score is not None:
+            score = score(Y_val, y_pred)
+            scores.append(score)
+        min_idx = np.argmin(np.array(val_loss))
+        losses.append((train_loss[min_idx], val_loss[min_idx]))
+        
+        # Plot train and validation loss curves
+        if plot_loss_curve:
+            axs[i].plot(train_loss, label='Train Loss')
+            axs[i].plot(val_loss, label='Validation Loss')
+            axs[i].set_title(f'Fold {i} Loss Curve', loc="right")
+            axs[i].set_xlabel('Iteration')
+            axs[i].set_ylabel('Loss')
+        i += 1    
+    if plot_loss_curve:
+        plt.tight_layout()
+        plt.legend()
+        plt.show(block=False)
     return models, scores, losses
 
 def train(df : pd.DataFrame, 
@@ -79,15 +84,15 @@ def train(df : pd.DataFrame,
     losses = []
     if preprocess is not None:
         df = preprocess(df)
-    
     # Leave one out testing (for every data point, train on all other data points and test on that data point)
     if not leave_one_out:
         models, scores, losses = _nFoldCV(df, preprocess, model, score, n_iterations, n_folds, stratify, plot_loss_curve)
-        plt.bar(range(len(scores)), scores)
-        plt.title('Validation Scores')
-        plt.xlabel('Fold')
-        plt.ylabel('Score')
-        plt.show()
+        if score is not None:
+            plt.bar(range(len(scores)), scores)
+            plt.title('Validation Scores')
+            plt.xlabel('Fold')
+            plt.ylabel('Score')
+            plt.show()
     else:
         if inference is None or score is None:
             raise ValueError('Inference and score functions must be provided for leave one out testing')
@@ -121,25 +126,29 @@ def train(df : pd.DataFrame,
     val_loss = [loss[1] for loss in losses]
     train_loss = [loss[0] for loss in losses]
     
+    off = 1
     # Plot scores and losses
-    fig, axs = plt.subplots(3, 1, figsize=(10, 10))
-    sorted_scores = sorted(scores, reverse=True)
+    if score is not None:
+        fig, axs = plt.subplots(3, 1, figsize=(10, 10))
+        sorted_scores = sorted(scores, reverse=True)
+        axs[0].bar(range(len(sorted_scores)), sorted_scores)
+        axs[0].set_title('Validation Scores', loc='right')
+        axs[0].set_xlabel('Fold')
+        axs[0].set_ylabel('Score')
+    else:
+        fig, axs = plt.subplots(2, 1, figsize=(10,10))
+        off = 0
     sorted_val_loss = sorted(val_loss)
     sorted_train_loss = sorted(train_loss)
-    axs[0].bar(range(len(sorted_scores)), sorted_scores)
-    axs[0].set_title('Validation Scores')
-    axs[0].set_xlabel('Fold')
-    axs[0].set_ylabel('Score')
-    axs[1].bar(range(len(sorted_val_loss)), sorted_val_loss)
-    axs[1].set_title('Validation Losses')
-    axs[1].set_xlabel('Fold')
-    axs[1].set_ylabel('Loss')
-    axs[2].bar(range(len(sorted_train_loss)), sorted_train_loss)
-    axs[2].set_title('Train Losses')
-    axs[2].set_xlabel('Fold')
-    axs[2].set_ylabel('Loss')
+    axs[off].bar(range(len(sorted_val_loss)), sorted_val_loss)
+    axs[off].set_title('Validation Losses',loc='right')
+    axs[off].set_xlabel('Fold')
+    axs[off].set_ylabel('Loss')
+    axs[1+off].bar(range(len(sorted_train_loss)), sorted_train_loss)
+    axs[1+off].set_title('Train Losses',loc='right')
+    axs[1+off].set_xlabel('Fold')
+    axs[1+off].set_ylabel('Loss')
     plt.tight_layout()
-    plt.show()
     
     # Print scores and losses
     print('Average Validation Score:', np.mean(scores))
@@ -148,7 +157,7 @@ def train(df : pd.DataFrame,
     print('Median Validation Loss:', np.median(val_loss))
     print('Average Training Loss:', np.mean(train_loss))
     print('Median Training Loss:', np.median(train_loss))
-    
+    plt.show()
     # Return models
     return models
     
@@ -167,7 +176,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     xgb_params = {
             'learning_rate': 0.03,
             'max_depth': 7,
-            'lambda': 1.1,
+            'lambda': 1.3,
             'alpha':.6,
             'colsample_bytree':.4,
             'grow_policy': 'lossguide',
@@ -175,7 +184,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
             'objective': 'binary:logistic',
             'eval_metric': 'logloss',
             'verbosity': 0,
-            'random_state': 1234123579,
+            'random_state': 312987524,
         }
 
     dtrain = xgb.DMatrix(X_train, label=Y_train)
@@ -193,5 +202,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
 # Read in data
 data_df = pd.read_csv('./data/cleaned_train.csv')
 
-train(data_df, contrastiveXGBoost)
+models = train(data_df, contrastiveXGBoost, plot_loss_curve=True)
+for i in range(len(models)):
+    models[i].save_model(f'contrastive_{i}.json')
     
