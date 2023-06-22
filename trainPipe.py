@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from splitData import split_data
 import pandas as pd
+import time
 import xgboost as xgb
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -17,11 +18,12 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
     models = []
     if preprocess is not None:
         df = preprocess(df)
-    df.drop("Id", axis=1, inplace=True)
+    df = df.drop("Id", axis=1)
     i = 0
     axs = None
     if plot_loss_curve:
         fig, axs = plt.subplots(n_folds, 1, figsize=(10, 10))
+    now = time.time()
     for X_train, X_val, Y_train, Y_val in split_data(df, n_folds=n_folds, stratify=stratify):
         X_train = X_train.to_numpy(dtype=np.float32)
         X_val = X_val.to_numpy(dtype=np.float32)
@@ -46,7 +48,10 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
             axs[i].set_title(f'Fold {i} Loss Curve', loc="right")
             axs[i].set_xlabel('Iteration')
             axs[i].set_ylabel('Loss')
-        i += 1    
+        i += 1
+        print(f"Fold {i} took {time.time() - now}s")
+        now = time.time()
+            
     if plot_loss_curve:
         plt.tight_layout()
         plt.legend()
@@ -89,21 +94,20 @@ def train(df : pd.DataFrame,
     losses = []
     if trial is not None:
         params = {
-            'learning_rate': trial.suggest_float('learning_rate', 0.005, 0.5),
+            'learning_rate': .05,
             'min_split_loss': trial.suggest_float('min_split_loss', 0, 1.0),
-            'subsample': trial.suggest_float('subsample', 0.01, 1.0),
+            'subsample': trial.suggest_float('subsample', 2e-3, 1.00),
             # 'max_leaves': trial.suggest_int('max_leaves', 2, 512),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 1.0),
-            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, .8),
             'max_depth':trial.suggest_int('max_depth', 1, 10),
-            'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 1),
-            'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 10.0),
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-6, 1),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 5.0),
             'grow_policy': 'lossguide',
-            'n_jobs': -1,
+            'n_jobs': 5,
             'objective': 'binary:logistic',
             'eval_metric': 'logloss',
             'verbosity': 0,
-            'random_state': 312987524
+            'random_state': 423
         }
     else:
         params = None
@@ -112,7 +116,7 @@ def train(df : pd.DataFrame,
     # Leave one out testing (for every data point, train on all other data points and test on that data point)
     if not leave_one_out:
         models, scores, losses = _nFoldCV(df, preprocess, model, score, n_iterations, n_folds, stratify, params=params, plot_loss_curve=plot_loss_curve)
-        if score is not None:
+        if score is not None and plot_loss_curve:
             plt.bar(range(len(scores)), scores)
             plt.title('Validation Scores')
             plt.xlabel('Fold')
@@ -138,42 +142,44 @@ def train(df : pd.DataFrame,
             y_pred = inference(X_test, best_model)
             scores = score(Y_test, y_pred) # type: ignore
             loo_scores.append(*scores)
-        
-        # Plot scores
-        plt.bar(range(len(df)), loo_scores)
-        plt.title('Leave One Out Scores')
-        plt.xlabel('Data Point')
-        plt.ylabel('Score')
-        plt.show()
-        print('Average LOO Score:', np.mean(loo_scores))
-        print('Median LOO Score:', np.median(loo_scores))
+        if plot_loss_curve:
+            # Plot scores
+            plt.bar(range(len(df)), loo_scores)
+            plt.title('Leave One Out Scores')
+            plt.xlabel('Data Point')
+            plt.ylabel('Score')
+            plt.show()
+            print('Average LOO Score:', np.mean(loo_scores))
+            print('Median LOO Score:', np.median(loo_scores))
         
     val_loss = [loss[1] for loss in losses]
     train_loss = [loss[0] for loss in losses]
     
     off = 1
     # Plot scores and losses
-    if score is not None:
-        fig, axs = plt.subplots(3, 1, figsize=(10, 10))
-        sorted_scores = sorted(scores, reverse=True)
-        axs[0].bar(range(len(sorted_scores)), sorted_scores)
-        axs[0].set_title('Validation Scores', loc='right')
-        axs[0].set_xlabel('Fold')
-        axs[0].set_ylabel('Score')
-    else:
-        fig, axs = plt.subplots(2, 1, figsize=(10,10))
-        off = 0
-    sorted_val_loss = sorted(val_loss)
-    sorted_train_loss = sorted(train_loss)
-    axs[off].bar(range(len(sorted_val_loss)), sorted_val_loss)
-    axs[off].set_title('Validation Losses',loc='right')
-    axs[off].set_xlabel('Fold')
-    axs[off].set_ylabel('Loss')
-    axs[1+off].bar(range(len(sorted_train_loss)), sorted_train_loss)
-    axs[1+off].set_title('Train Losses',loc='right')
-    axs[1+off].set_xlabel('Fold')
-    axs[1+off].set_ylabel('Loss')
-    plt.tight_layout()
+    if plot_loss_curve:
+        if score is not None:
+            fig, axs = plt.subplots(3, 1, figsize=(10, 10))
+            sorted_scores = sorted(scores, reverse=True)
+            axs[0].bar(range(len(sorted_scores)), sorted_scores)
+            axs[0].set_title('Validation Scores', loc='right')
+            axs[0].set_xlabel('Fold')
+            axs[0].set_ylabel('Score')
+        else:
+            fig, axs = plt.subplots(2, 1, figsize=(10,10))
+            off = 0
+        sorted_val_loss = sorted(val_loss)
+        sorted_train_loss = sorted(train_loss)
+        axs[off].bar(range(len(sorted_val_loss)), sorted_val_loss)
+        axs[off].set_title('Validation Losses',loc='right')
+        axs[off].set_xlabel('Fold')
+        axs[off].set_ylabel('Loss')
+        axs[1+off].bar(range(len(sorted_train_loss)), sorted_train_loss)
+        axs[1+off].set_title('Train Losses',loc='right')
+        axs[1+off].set_xlabel('Fold')
+        axs[1+off].set_ylabel('Loss')
+        plt.tight_layout()
+        plt.show()
     
     # Print scores and losses
     if score is not None:
@@ -183,10 +189,10 @@ def train(df : pd.DataFrame,
     print('Median Validation Loss:', np.median(val_loss))
     print('Average Training Loss:', np.mean(train_loss))
     print('Median Training Loss:', np.median(train_loss))
-    plt.show()
+    
     # Return models
     if trial is not None:
-        return sum(val_loss)/len(val_loss)
+        return sum(val_loss) / len(val_loss)
     return models
     
 def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=None):
@@ -202,28 +208,27 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     
     # Train XGBoost model
     
-    xgb_params = {
-            'learning_rate': 0.01,
-            'max_depth': 7,
-            'lambda': 1.3,
-            'alpha':.6,
-            'colsample_bytree':.4,
-            'grow_policy': 'lossguide',
-            'n_jobs': -1,
-            'objective': 'binary:logistic',
-            'eval_metric': 'logloss',
-            'verbosity': 0,
-            'random_state': 312987524,
-        }
+    # xgb_params = {
+    #         'learning_rate': 0.01,
+    #         'max_depth': 7,
+    #         'lambda': 1.3,
+    #         'alpha':.6,
+    #         'colsample_bytree':.4,
+    #         'grow_policy': 'lossguide',
+    #         'n_jobs': 24,
+    #         'objective': 'binary:logistic',
+    #         'eval_metric': 'logloss',
+    #         'verbosity': 0,
+    #         'random_state': 312987524,
+    #     }
     if params is not None:
         xgb_params = params
 
     dtrain = xgb.DMatrix(X_train, label=Y_train)
     dval = xgb.DMatrix(X_val, label=Y_val)
     res = {}
-
     evallist = [(dtrain, 'train'), (dval, 'validation')]
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=100, evals_result=res)
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=50, evals_result=res, verbose_eval=False)
 
     # Make predictions on validation set
     y_pred = model.predict(dval)
@@ -236,5 +241,13 @@ data_df = pd.read_csv('./data/cleaned_train.csv')
 # models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True) # type: ignore
 # for i in range(len(models)):
 #     models[i].save_model(f'contrastive_{i}.json')
+
+def train_wrapper(trial):
+    return train(data_df.copy(), contrastiveXGBoost, trial=trial, n_folds=3)
+
 study = optuna.create_study(direction='minimize')
-study.optimize(train(data_df, contrastiveXGBoost), n_trials=20)
+study.optimize(train_wrapper, n_trials=5, n_jobs=5, show_progress_bar=True)
+print(study.best_params)
+print(study.best_trial)
+print(study.best_value)
+print(study.direction)
