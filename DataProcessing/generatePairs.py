@@ -33,7 +33,7 @@ def generate_pairs(features, labels, fraction=1, add_noise=True):
     labels_array = np.zeros((n * frac, 2), dtype=np.int32)
     
     # Generate pairs for each row in parallel
-    results = Parallel(n_jobs=1)(delayed(generate_pairs_for_row)(i, fraction) for i in range(n)) #type: ignore
+    results = Parallel(n_jobs=1)(delayed(generate_pairs_for_row)(i, fraction, frac, features, n, add_noise, labels) for i in range(n)) #type: ignore
     results.sort(key=lambda val: val[2]) #type: ignore
     
     # Combine the results into the final pairs and labels arrays
