@@ -1,4 +1,4 @@
-from scipy.stats import pointbiserialr
+from scipy.stats import pointbiserialr # type: ignore
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -96,13 +96,13 @@ def visualize():
     import seaborn as sns
     figsize = (6*6, 20)
     fig = plt.figure(figsize=figsize)
-    for idx, row in corr_scores.iterrows():
-        if idx > 9:
+    for idx, row in corr_scores.iterrows(): # type: ignore
+        if idx > 9: # type: ignore
             break
-        copy = {"Feature": mapper[row["Feature"]], "Class": df["Class"]}
+        copy = {"Feature": mapper[row["Feature"]], "Class": df["Class"]} # type: ignore
         copy = pd.DataFrame(copy)
         
-        ax = plt.subplot(5,6, 3 * idx + 1)
+        ax = plt.subplot(5,6, 3 * idx + 1) # type: ignore
         sns.kdeplot(copy[copy["Class"] == 1]["Feature"], fill=True, legend=False)
         sns.kdeplot(copy[copy["Class"] == 0]["Feature"], fill=True, legend=False)
         ax.set_title(f'{row["Feature"]}', loc='right')
@@ -110,12 +110,12 @@ def visualize():
         name1, name2 = re.split("/|\*", row["Feature"])
         name1, name2 = name1[:2:], name2[:2:]
         
-        ax = plt.subplot(5,6, 3 * idx + 2)
+        ax = plt.subplot(5,6, 3 * idx + 2) # type: ignore
         sns.kdeplot(np.log1p(df[df["Class"] == 1][name1]), fill=True, legend=False)
         sns.kdeplot(df[df["Class"] == 0][name1], fill=True, legend=False)
         ax.set_title(f'{name1}', loc='right')
         
-        ax = plt.subplot(5,6, 3 * idx + 3)
+        ax = plt.subplot(5,6, 3 * idx + 3) # type: ignore
         sns.kdeplot(df[df["Class"] == 1][name2], fill=True, legend=False)
         sns.kdeplot(df[df["Class"] == 0][name2], fill=True, legend=False)
         ax.set_title(f'{name2}', loc='right')
@@ -127,22 +127,22 @@ def visualize():
 
 
     print(corr_scores)
-    corr_scores.to_csv("out.csv",index=True)
+    corr_scores.to_csv("out.csv",index=True) # type: ignore
 
     import csv
     with open('corrs.csv', 'w') as f:  # You will need 'wb' mode in Python 2.x
-        w = csv.DictWriter(f, col_corrs.keys())
+        w = csv.DictWriter(f, col_corrs.keys()) # type: ignore
         w.writeheader()
-        w.writerow(col_corrs)
+        w.writerow(col_corrs) # type: ignore
         
-    for idx, row in corr_scores.iterrows():
+    for idx, row in corr_scores.iterrows(): # type: ignore
         name1, name2 = re.split("/|\*", row["Feature"])
         name1, name2 = name1[:2:], name2[:2:]
-        print("Feature: {}, ExcessCorr: {}, individual: {}, {}".format(row["Feature"], row["ExcessCorr"], col_corrs[name1], col_corrs[name2]))
-        if(idx > 200):
+        print("Feature: {}, ExcessCorr: {}, individual: {}, {}".format(row["Feature"], row["ExcessCorr"], col_corrs[name1], col_corrs[name2])) # type: ignore
+        if(idx > 200): # type: ignore
             break
         
 
     # Plot the top 200 linear correlation scores as a line plot
-    corr_scores[:200].plot(kind="line")
+    corr_scores[:200].plot(kind="line") # type: ignore
     plt.show()

@@ -20,7 +20,7 @@ sns.heatmap(corr_matrix, annot=True, cmap='coolwarm')
 plt.show()
 
 # Find pairs of columns with correlation greater than 0.7
-correlated_pairs = [(corr_matrix.columns[i], corr_matrix.columns[j]) for i in range(corr_matrix.shape[0]) for j in range(i+1, corr_matrix.shape[0]) if corr_matrix.iloc[i,j] > 0.7]
+correlated_pairs = [(corr_matrix.columns[i], corr_matrix.columns[j]) for i in range(corr_matrix.shape[0]) for j in range(i+1, corr_matrix.shape[0]) if corr_matrix.iloc[i,j] > 0.7] # type: ignore
 
 # Calculate correlation between each correlated pair and the "Class" column
 for pair in correlated_pairs:

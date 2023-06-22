@@ -7,6 +7,3 @@ input = "./data/cleaned_train.csv"
 # create dataframe
 df = pd.read_csv(input)
 
-# generate pairs
-pairs, labels = generate_pairs(df)
-

@@ -3,7 +3,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from random import sample
 
-def generate_pairs(features, labels, fraction=.04, add_noise=True):
+def generate_pairs(features, labels, fraction=1, add_noise=True):
     # Get the number of rows in the features array
     n = features.shape[0]
     frac = ((int) (n * fraction))
@@ -33,12 +33,12 @@ def generate_pairs(features, labels, fraction=.04, add_noise=True):
         return row_pairs, row_labels, i
     
     # Generate pairs for each row in parallel
-    results = Parallel(n_jobs=-1)(delayed(generate_pairs_for_row)(i, fraction) for i in range(n))
-    results.sort(key=lambda val: val[2])
+    results = Parallel(n_jobs=-1)(delayed(generate_pairs_for_row)(i, fraction) for i in range(n)) #type: ignore
+    results.sort(key=lambda val: val[2]) #type: ignore
     
     # Combine the results into the final pairs and labels arrays
     idx = 0
-    for row_pairs, row_labels, _ in results:
+    for row_pairs, row_labels, _ in results: #type: ignore
         pairs[idx:idx+frac] = row_pairs
         labels_array[idx:idx+frac] = row_labels
         idx += frac

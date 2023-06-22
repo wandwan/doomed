@@ -3,9 +3,12 @@ import numpy as np
 from splitData import split_data
 import pandas as pd
 import xgboost as xgb
+import optuna
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 from typing import Callable, Iterable
+import sys
 
-def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5, stratify=True, plot_loss_curve=False):
+def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5, stratify=True, params=None, plot_loss_curve=False):
     # scores holds floats of scores for each fold
     scores = []
     # losses holds tuples of (train_loss, val_loss)
@@ -16,6 +19,7 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
         df = preprocess(df)
     df.drop("Id", axis=1, inplace=True)
     i = 0
+    axs = None
     if plot_loss_curve:
         fig, axs = plt.subplots(n_folds, 1, figsize=(10, 10))
     for X_train, X_val, Y_train, Y_val in split_data(df, n_folds=n_folds, stratify=stratify):
@@ -25,7 +29,7 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
         Y_val = np.round(Y_val.to_numpy()).astype(int)
         
         # Train model
-        train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations)
+        train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations, params=params)
         
         # Save model, score, and and minimum val_loss
         models.append(model)
@@ -36,7 +40,7 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
         losses.append((train_loss[min_idx], val_loss[min_idx]))
         
         # Plot train and validation loss curves
-        if plot_loss_curve:
+        if axs is not None:
             axs[i].plot(train_loss, label='Train Loss')
             axs[i].plot(val_loss, label='Validation Loss')
             axs[i].set_title(f'Fold {i} Loss Curve', loc="right")
@@ -56,7 +60,7 @@ def train(df : pd.DataFrame,
           score : (Callable[[pd.DataFrame, pd.DataFrame], list[float]] | None)=None, 
           inference:(Callable[[pd.DataFrame, str|object], pd.DataFrame]|None) = None, 
           n_iterations:int=1000000, n_folds:int=5, stratify:bool=True, 
-          leave_one_out:bool=False, plot_loss_curve:bool=False) -> list[str|object]:
+          leave_one_out:bool=False, plot_loss_curve:bool=False, trial:optuna.Trial|None=None) -> list[str|object]:
     """
     Function to train a model using n-fold cross validation and return the best model from each fold.
 
@@ -72,7 +76,8 @@ def train(df : pd.DataFrame,
         leave_one_out (bool, optional): Whether or not to do Leave-one-out testing, if this is set to true, you must pass in an inference and score function. Defaults to False.
         plot_loss_curve (bool, optional): Whether or not to plot a loss curve for each iteration of CV, does not work with leave-one-out testing. Defaults to False.
 
-    Raises:
+    Raises:ape[1])
+                features_i = features[i] * (1 + noise)
         ValueError: If leave_one_out is True and inference or score is None (since we need to make predictions on the test set and score them)
 
     Returns:
@@ -82,11 +87,31 @@ def train(df : pd.DataFrame,
     models = []
     scores = []
     losses = []
+    if trial is not None:
+        params = {
+            'learning_rate': trial.suggest_float('learning_rate', 0.005, 0.5),
+            'min_split_loss': trial.suggest_float('min_split_loss', 0, 1.0),
+            'subsample': trial.suggest_float('subsample', 0.01, 1.0),
+            # 'max_leaves': trial.suggest_int('max_leaves', 2, 512),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 1.0),
+            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+            'max_depth':trial.suggest_int('max_depth', 1, 10),
+            'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 1),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 10.0),
+            'grow_policy': 'lossguide',
+            'n_jobs': -1,
+            'objective': 'binary:logistic',
+            'eval_metric': 'logloss',
+            'verbosity': 0,
+            'random_state': 312987524
+        }
+    else:
+        params = None
     if preprocess is not None:
         df = preprocess(df)
     # Leave one out testing (for every data point, train on all other data points and test on that data point)
     if not leave_one_out:
-        models, scores, losses = _nFoldCV(df, preprocess, model, score, n_iterations, n_folds, stratify, plot_loss_curve)
+        models, scores, losses = _nFoldCV(df, preprocess, model, score, n_iterations, n_folds, stratify, params=params, plot_loss_curve=plot_loss_curve)
         if score is not None:
             plt.bar(range(len(scores)), scores)
             plt.title('Validation Scores')
@@ -106,7 +131,7 @@ def train(df : pd.DataFrame,
             
             # Overwrite models scores and losses every time since we only leave out one data point
             # so the models should be about the same
-            models, scores, losses = _nFoldCV(X_df, preprocess, model, score, n_iterations, n_folds, stratify)
+            models, scores, losses = _nFoldCV(X_df, preprocess, model, score, n_iterations, n_folds, stratify, params)
             val_loss = [loss[1] for loss in losses]
             best_model_index = val_loss.index(min(val_loss))
             best_model = models[best_model_index]
@@ -160,9 +185,11 @@ def train(df : pd.DataFrame,
     print('Median Training Loss:', np.median(train_loss))
     plt.show()
     # Return models
+    if trial is not None:
+        return sum(val_loss)/len(val_loss)
     return models
     
-def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
+def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=None):
     from DataProcessing.generatePairs import generate_pairs
 
     # Generate pairs
@@ -174,8 +201,9 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
     Y_train = Y_train[perm]
     
     # Train XGBoost model
+    
     xgb_params = {
-            'learning_rate': 0.03,
+            'learning_rate': 0.01,
             'max_depth': 7,
             'lambda': 1.3,
             'alpha':.6,
@@ -187,6 +215,8 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
             'verbosity': 0,
             'random_state': 312987524,
         }
+    if params is not None:
+        xgb_params = params
 
     dtrain = xgb.DMatrix(X_train, label=Y_train)
     dval = xgb.DMatrix(X_val, label=Y_val)
@@ -203,7 +233,8 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations):
 # Read in data
 data_df = pd.read_csv('./data/cleaned_train.csv')
 
-models = train(data_df, contrastiveXGBoost, plot_loss_curve=True)
-for i in range(len(models)):
-    models[i].save_model(f'contrastive_{i}.json')
-    
+# models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True) # type: ignore
+# for i in range(len(models)):
+#     models[i].save_model(f'contrastive_{i}.json')
+study = optuna.create_study(direction='minimize')
+study.optimize(train(data_df, contrastiveXGBoost), n_trials=20)

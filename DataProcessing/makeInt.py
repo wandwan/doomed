@@ -63,5 +63,5 @@ def convert_to_integer(df: pd.DataFrame) -> pd.DataFrame:
 
     for k, v in int_denominators.items():
         df[k] = np.round(df[k]/v,1).astype(int)
-
+        
     return df
