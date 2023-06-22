@@ -17,7 +17,7 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
     models = []
     if preprocess is not None:
         df = preprocess(df)
-    df.drop("Id", axis=1, inplace=True)
+    df = df.drop("Id", axis=1)
     i = 0
     axs = None
     if plot_loss_curve:
@@ -94,12 +94,11 @@ def train(df : pd.DataFrame,
             'subsample': trial.suggest_float('subsample', 0.01, 1.0),
             # 'max_leaves': trial.suggest_int('max_leaves', 2, 512),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 1.0),
-            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
             'max_depth':trial.suggest_int('max_depth', 1, 10),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 1),
             'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 10.0),
             'grow_policy': 'lossguide',
-            'n_jobs': -1,
+            'n_jobs': 1,
             'objective': 'binary:logistic',
             'eval_metric': 'logloss',
             'verbosity': 0,
@@ -202,28 +201,29 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     
     # Train XGBoost model
     
-    xgb_params = {
-            'learning_rate': 0.01,
-            'max_depth': 7,
-            'lambda': 1.3,
-            'alpha':.6,
-            'colsample_bytree':.4,
-            'grow_policy': 'lossguide',
-            'n_jobs': -1,
-            'objective': 'binary:logistic',
-            'eval_metric': 'logloss',
-            'verbosity': 0,
-            'random_state': 312987524,
-        }
+    # xgb_params = {
+    #         'learning_rate': 0.01,
+    #         'max_depth': 7,
+    #         'lambda': 1.3,
+    #         'alpha':.6,
+    #         'colsample_bytree':.4,
+    #         'grow_policy': 'lossguide',
+    #         'n_jobs': 24,
+    #         'objective': 'binary:logistic',
+    #         'eval_metric': 'logloss',
+    #         'verbosity': 0,
+    #         'random_state': 312987524,
+    #     }
     if params is not None:
         xgb_params = params
+    xgb.set_config(verbosity=0)
 
     dtrain = xgb.DMatrix(X_train, label=Y_train)
     dval = xgb.DMatrix(X_val, label=Y_val)
     res = {}
-
+    
     evallist = [(dtrain, 'train'), (dval, 'validation')]
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=100, evals_result=res)
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=100, evals_result=res, verbose_eval=False)
 
     # Make predictions on validation set
     y_pred = model.predict(dval)
@@ -236,5 +236,9 @@ data_df = pd.read_csv('./data/cleaned_train.csv')
 # models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True) # type: ignore
 # for i in range(len(models)):
 #     models[i].save_model(f'contrastive_{i}.json')
+
+def train_wrapper(trial):
+    return train(data_df, contrastiveXGBoost, trial=trial)
+
 study = optuna.create_study(direction='minimize')
-study.optimize(train(data_df, contrastiveXGBoost), n_trials=20)
+study.optimize(train_wrapper, n_trials=20, n_jobs=24)
