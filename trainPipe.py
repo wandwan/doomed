@@ -32,7 +32,6 @@ def _nFoldCV(df, preprocess, trainModel, score, n_iterations=1000000, n_folds=5,
         
         # Train model
         train_loss, val_loss, y_pred, model = trainModel(X_train, Y_train, X_val, Y_val, n_iterations, params=params)
-        
         # Save model, score, and and minimum val_loss
         models.append(model)
         if score is not None:
@@ -94,17 +93,19 @@ def train(df : pd.DataFrame,
     losses = []
     if trial is not None:
         params = {
-            'learning_rate': .05,
-            'min_split_loss': trial.suggest_float('min_split_loss', 0, 1.0),
-            'subsample': trial.suggest_float('subsample', 2e-3, 1.00),
+            'learning_rate': trial.suggest_float('learning_rate', .005, 1.00),
+            'min_split_loss': trial.suggest_float('min_split_loss', 0, 1),
+            'subsample': trial.suggest_float('subsample', .001, 1.00),
             # 'max_leaves': trial.suggest_int('max_leaves', 2, 512),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, .8),
-            'max_depth':trial.suggest_int('max_depth', 1, 10),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.02, 1.00),
+            'max_depth': trial.suggest_int('max_depth', 3, 14),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-6, 1),
-            'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 5.0),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 10.0),
+            # 'sampling_method': 'gradient_based', #Alex uncomment this out!
             'grow_policy': 'lossguide',
-            'n_jobs': 5,
+            'n_jobs': -1,
             'objective': 'binary:logistic',
+            # 'tree_method': 'gpu_hist', #Alex uncomment this out!
             'eval_metric': 'logloss',
             'verbosity': 0,
             'random_state': 423
@@ -228,9 +229,9 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     dval = xgb.DMatrix(X_val, label=Y_val)
     res = {}
     evallist = [(dtrain, 'train'), (dval, 'validation')]
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=50, evals_result=res, verbose_eval=False)
 
-    # Make predictions on validation set
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=80, evals_result=res, verbose_eval=False)
+     # Make predictions on validation set
     y_pred = model.predict(dval)
     y_pred = np.round(y_pred)
     return res['train']['logloss'], res['validation']['logloss'], y_pred, model
@@ -244,9 +245,9 @@ data_df = pd.read_csv('./data/cleaned_train.csv')
 
 def train_wrapper(trial):
     return train(data_df.copy(), contrastiveXGBoost, trial=trial, n_folds=3)
-
-study = optuna.create_study(direction='minimize')
-study.optimize(train_wrapper, n_trials=5, n_jobs=5, show_progress_bar=True)
+sampler = optuna.samplers.CmaEsSampler()
+study = optuna.create_study(direction='minimize', sampler=sampler)
+study.optimize(train_wrapper, n_trials=100, n_jobs=24, show_progress_bar=True)
 print(study.best_params)
 print(study.best_trial)
 print(study.best_value)
