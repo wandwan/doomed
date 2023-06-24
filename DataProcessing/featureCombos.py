@@ -173,6 +173,18 @@ def created_features_corr():
 
     print("finished generating combos")
     
+    #keep only the top 200 rows
+    kept = []
+    for idx, row in corr_scores.iterrows(): # type: ignore
+        kept.append(row["Feature"])
+        if idx > 200:
+            break
+
+    #remove all columns that are not in the top 200
+    for key in list(mapper.keys()):
+        if key not in kept:
+            del mapper[key]
+    
     # Convert mapper dictionary to dataframe
     mapper_df = pd.DataFrame.from_dict(mapper)
     
