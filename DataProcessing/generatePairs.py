@@ -14,10 +14,10 @@ def generate_pairs_for_row(i,fraction, frac, features, n, add_noise, labels):
             noise = np.random.normal(loc=0.0, scale=0.15, size=features.shape[1])
             features_i = features[i] * (1 + noise)
             features_j = features[j] * (1 + noise)
-            row_pairs[idx] = np.concatenate([features_i - features_j, features_i / (features_j + 1), features_j])
+            row_pairs[idx] = np.concatenate([features_i - features_j, features_i / np.clip(features_j, 1e-6, None), features_j])
         else:
             # Perform element-wise addition, subtraction, and multiplication of the features of two rows
-            row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / (features[j] + 1), features[j]])
+            row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / np.clip(features[j], 1e-6, None), features[j]], dtype=float)
         # Add the XOR of the two classes to the labels array
         row_labels[idx][labels[i] ^ labels[j]] = 1
     return row_pairs, row_labels, i

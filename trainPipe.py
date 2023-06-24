@@ -209,19 +209,19 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     
     # Train XGBoost model
     
-    # xgb_params = {
-    #         'learning_rate': 0.01,
-    #         'max_depth': 7,
-    #         'lambda': 1.3,
-    #         'alpha':.6,
-    #         'colsample_bytree':.4,
-    #         'grow_policy': 'lossguide',
-    #         'n_jobs': 24,
-    #         'objective': 'binary:logistic',
-    #         'eval_metric': 'logloss',
-    #         'verbosity': 0,
-    #         'random_state': 312987524,
-    #     }
+    xgb_params = {'learning_rate': 0.008168061411573882, 
+                  'min_split_loss': 0.5315667826163368, 
+                  'subsample': 0.5657155206937886, 
+                  'colsample_bytree': 0.18149665124735848, 
+                  'max_depth': 8, 
+                  'reg_alpha': 0.8153986720516078, 
+                  'reg_lambda': 4.455946009715993,
+                  'grow_policy': 'lossguide',
+                  'n_jobs': 24,
+                  'objective': 'binary:logistic',
+                  'eval_metric': 'logloss',
+                  'verbosity': 0,
+                  'random_state': 423}
     if params is not None:
         xgb_params = params
 
@@ -230,7 +230,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     res = {}
     evallist = [(dtrain, 'train'), (dval, 'validation')]
 
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=80, evals_result=res, verbose_eval=False)
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=150, evals_result=res, verbose_eval=True)
      # Make predictions on validation set
     y_pred = model.predict(dval)
     y_pred = np.round(y_pred)
@@ -239,16 +239,16 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
 # Read in data
 data_df = pd.read_csv('./data/cleaned_train.csv')
 
-# models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True) # type: ignore
-# for i in range(len(models)):
-#     models[i].save_model(f'contrastive_{i}.json')
+models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True, n_folds=3) # type: ignore
+for i in range(len(models)):
+    models[i].save_model(f'contrastive_{i}.json')
 
-def train_wrapper(trial):
-    return train(data_df.copy(), contrastiveXGBoost, trial=trial, n_folds=3)
-sampler = optuna.samplers.CmaEsSampler()
-study = optuna.create_study(direction='minimize', sampler=sampler)
-study.optimize(train_wrapper, n_trials=100, n_jobs=24, show_progress_bar=True)
-print(study.best_params)
-print(study.best_trial)
-print(study.best_value)
-print(study.direction)
+# def train_wrapper(trial):
+#     return train(data_df.copy(), contrastiveXGBoost, trial=trial, n_folds=3)
+# sampler = optuna.samplers.CmaEsSampler()
+# study = optuna.create_study(direction='minimize', sampler=sampler)
+# study.optimize(train_wrapper, n_trials=100, n_jobs=24, show_progress_bar=True)
+# print(study.best_params)
+# print(study.best_trial)
+# print(study.best_value)
+# print(study.direction)
