@@ -67,12 +67,17 @@ def generate_combo_features(df, retVisu=False):
             corr, _ = pointbiserialr(df["Class"], col[1])
             name1, name2 = re.split("/|\*", col[0])
             name1, name2 = name1[:2:], name2[:2:]
-            corr_scores.append((col[0], abs(corr) ** 2 - (max(abs(col_corrs[name1]), abs(col_corrs[name2])))**2))
+            corr_scores.append((col[0], abs(corr) - (max(abs(col_corrs[name1]), abs(col_corrs[name2])))))
         corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "ExcessCorr"]).sort_values(by="ExcessCorr", ascending=False).reset_index(drop=True)
         if not retVisu:
             return corr_scores
+        # corr_scores contains the excess correlation of each feature combination
+        # col_corrs contains the point_biserial correlation of each feature with df["Class"]
+        # mapper maps the feature name to the actual generated feature vals (string to df[col])
         return corr_scores, col_corrs, mapper
 
+
+#don't touch this method, its so bad
 def visualize():
     # Read in train.csv
     df = pd.read_csv("data/train.csv")
@@ -146,3 +151,38 @@ def visualize():
     # Plot the top 200 linear correlation scores as a line plot
     corr_scores[:200].plot(kind="line") # type: ignore
     plt.show()
+
+# calculate the correlation between any 2 combination of created features
+def created_features_corr():
+    # Read in train.csv
+    df = pd.read_csv("data/train.csv")
+
+    # Remove whitespace from column names
+    df.columns = df.columns.str.replace(' ', '')
+
+    from convToNum import convert_to_numeric
+    # Convert all columns to numbers
+    df = convert_to_numeric(df)
+
+    # Fill nan's
+    from fillNan import fill_na_with_kmeans
+    df = fill_na_with_kmeans(df)
+
+    # Generate feature combinations
+    corr_scores, col_corrs, mapper = generate_combo_features(df, True)
+
+    print("finished generating combos")
+    
+    # Convert mapper dictionary to dataframe
+    mapper_df = pd.DataFrame.from_dict(mapper)
+    
+    # Calculate correlation between all columns in mapper_df
+    corr_matrix = mapper_df.corr()
+    
+    # Show correlation as plot
+    plt.matshow(corr_matrix)
+    plt.xticks(range(len(corr_matrix.columns)), corr_matrix.columns, rotation=90)
+    plt.yticks(range(len(corr_matrix.columns)), corr_matrix.columns)
+    plt.colorbar()
+    plt.show()
+created_features_corr()
