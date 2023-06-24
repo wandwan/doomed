@@ -76,8 +76,65 @@ def generate_combo_features(df, retVisu=False):
         # mapper maps the feature name to the actual generated feature vals (string to df[col])
         return corr_scores, col_corrs, mapper
 
+def calculateNewFeatures():
+    # Load data into dataframe
+    df = pd.read_csv("data/train.csv")
 
-#don't touch this method, its so bad
+    # Remove whitespace from column names
+    df.columns = df.columns.str.replace(' ', '')
+
+    from convToNum import convert_to_numeric
+    # Convert all columns to numbers
+    df = convert_to_numeric(df)
+
+    # Fill nan's
+    from fillNan import fill_na_with_kmeans
+    df = fill_na_with_kmeans(df)
+
+    # Generate new features
+    corr_scores, _, mapper = generate_combo_features(df, True)
+    print("Generated new features")
+    print(corr_scores.head(10))
+
+    # Keep only the top 200 rows
+    kept = []
+    for idx, row in corr_scores.iterrows():
+        kept.append(row["Feature"])
+        if idx > 200:
+            break
+
+    # Remove all columns that are not in the top 200
+    for key in list(mapper.keys()):
+        if key not in kept:
+            del mapper[key]
+
+    # Calculate correlation between all new features
+    new_features = pd.DataFrame.from_dict(mapper)
+    corr_matrix = new_features.corr()
+
+    # Find highly correlated features
+    high_corr = (corr_matrix > 0.75) & (corr_matrix < 1.0)
+    drop_cols = []
+    for col in high_corr.columns:
+        if col not in drop_cols:
+            correlated_cols = high_corr.index[high_corr[col]]
+            if len(correlated_cols) > 0:
+                max_corr = corr_matrix.loc[correlated_cols, col].max()
+                max_corr_col = corr_matrix.loc[correlated_cols, col].idxmax()
+                dropped = col
+                print(corr_scores.loc[corr_scores["Feature"] == max_corr_col]["ExcessCorr"])
+                if corr_scores.loc[corr_scores["Feature"] == max_corr_col]["ExcessCorr"] > corr_scores.loc[corr_scores["Feature"] == col]["ExcessCorr"]:
+                    dropped = max_corr_col
+                if dropped not in drop_cols:
+                    drop_cols += correlated_cols.drop(dropped).tolist()
+                    print("Dropping", drop_cols, "with correlation", max_corr, "between: ", max_corr_col, "and", col)
+    # Drop highly correlated features
+    new_features = new_features.drop(drop_cols, axis=1)
+
+    # Return dataframe of kept feature names to feature values
+    return new_features
+
+# The following functions are so shit, just remove them eventually please
 def visualize():
     # Read in train.csv
     df = pd.read_csv("data/train.csv")
@@ -197,4 +254,6 @@ def created_features_corr():
     plt.yticks(range(len(corr_matrix.columns)), corr_matrix.columns)
     plt.colorbar()
     plt.show()
-created_features_corr()
+
+df = calculateNewFeatures()
+df.to_csv("calculated_features.csv", index=False)
