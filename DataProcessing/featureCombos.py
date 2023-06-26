@@ -70,7 +70,7 @@ def generate_combo_features(df, retVisu=False):
             corr, _ = pointbiserialr(df["Class"], col[1])
             name1, name2 = re.split("/|\*", col[0])
             name1, name2 = name1[:2:], name2[:2:]
-            corr_scores.append((col[0], abs(corr) - (max(abs(col_corrs[name1]), abs(col_corrs[name2])))))
+            corr_scores.append((col[0], abs(corr) - ((abs(col_corrs[name1]) + abs(col_corrs[name2])))))
         corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "ExcessCorr"]).sort_values(by="ExcessCorr", ascending=False).reset_index(drop=True)
         if not retVisu:
             return corr_scores
@@ -79,32 +79,18 @@ def generate_combo_features(df, retVisu=False):
         # mapper maps the feature name to the actual generated feature vals (string to df[col])
         return corr_scores, col_corrs, mapper
 
-def calculateNewFeatures():
-    # Load data into dataframe
-    df = pd.read_csv("data/train.csv")
-
-    # Remove whitespace from column names
-    df.columns = df.columns.str.replace(' ', '')
-    
-    from convToNum import convert_to_numeric
-    # Convert all columns to numbers
-    df = convert_to_numeric(df)
-
-    # Fill nan's
-    from fillNan import fill_na_with_kmeans
-    df = fill_na_with_kmeans(df)
-
+def calculateNewFeatures(df, numNewFeaturesKept=100, PCAKept=36):
     # Generate new features
     corr_scores, _, mapper = generate_combo_features(df, True)
     print("Generated new features")
-    print(corr_scores.head(10))
+    print(corr_scores["ExcessCorr"].head(60))
 
     # Keep only the top 1000 rows
     kept = []
     for idx, row in corr_scores.iterrows():
         kept.append(row["Feature"])
-        # if idx > 500:
-        #     break
+        if idx > numNewFeaturesKept:
+            break
 
     # Remove all columns that are not in the top 500
     for key in list(mapper.keys()):
@@ -115,15 +101,16 @@ def calculateNewFeatures():
     new_features = pd.DataFrame().from_dict(mapper)
     new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
     
-    # log features then scale everything to mean 0 and std 1
+    # log features then scale everything to mean 0
     new_features = logAndScaleColumns(new_features)
     
     # Perform PCA on new features
-    pca = PCA(100).fit(new_features.values)
+    pca = PCA(PCAKept).fit(new_features.values)
     pickle.dump(pca, open("pca.pkl", "wb"))
     new_features = pca.transform(new_features.values)
     
     plt.plot(np.cumsum(pca.explained_variance_ratio_))
+    print("Explained variance ratios: ", np.cumsum(pca.explained_variance_ratio_))
     plt.xlabel('number of components')
     plt.ylabel('cumulative explained variance')
     plt.savefig("pca.png")
@@ -251,7 +238,3 @@ def created_features_corr():
     plt.colorbar()
     plt.show()
 
-arr = calculateNewFeatures()
-df = pd.DataFrame(arr)
-df = pd.concat([df, pd.read_csv("data/train.csv")["Class"]], axis=1)
-df.to_csv("new_features.csv", index=False)

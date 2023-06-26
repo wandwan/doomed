@@ -237,10 +237,9 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     return res['train']['logloss'], res['validation']['logloss'], y_pred, model
 
 # Read in data
-data_df = pd.read_csv('./new_features.csv')
-data_df = pd.concat([data_df, pd.DataFrame([x for x in range(data_df.shape[0])], columns=['Id'])], axis=1)
+data_df = pd.read_csv('./data/pca.csv')
 
-models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True, n_folds=3) # type: ignore
+models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True, n_folds=4) # type: ignore
 for i in range(len(models)):
     models[i].save_model(f'contrastive_{i}.json')
 

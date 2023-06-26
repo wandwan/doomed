@@ -30,8 +30,8 @@ def logAndScaleColumns(df, exclude_cols=[]):
         # Take log of each column
         log_data = np.log(data)
         
-        # Scale each column to mean 0 and magnitude 1
-        scaler = StandardScaler()
+        # Scale each column to mean 0
+        scaler = StandardScaler(with_std=False)
         scaled_data = scaler.fit_transform(log_data)
         
         # Convert scaled data back to dataframe
