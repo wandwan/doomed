@@ -38,5 +38,7 @@ def tree_clean(input_file):
     df = combo_features(df, selected)
     
     return df.copy()
+def pca_clean(input_file):
+    
 
 tree_clean(input_file).to_csv(output_file, index=False)

@@ -2,6 +2,9 @@ from scipy.stats import pointbiserialr # type: ignore
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+from makeNorm import logAndScaleColumns
+import pickle
 import re
 
 def _transformCol(df, col):
@@ -82,7 +85,7 @@ def calculateNewFeatures():
 
     # Remove whitespace from column names
     df.columns = df.columns.str.replace(' ', '')
-
+    
     from convToNum import convert_to_numeric
     # Convert all columns to numbers
     df = convert_to_numeric(df)
@@ -96,43 +99,36 @@ def calculateNewFeatures():
     print("Generated new features")
     print(corr_scores.head(10))
 
-    # Keep only the top 200 rows
+    # Keep only the top 1000 rows
     kept = []
     for idx, row in corr_scores.iterrows():
         kept.append(row["Feature"])
-        if idx > 200:
-            break
+        # if idx > 500:
+        #     break
 
-    # Remove all columns that are not in the top 200
+    # Remove all columns that are not in the top 500
     for key in list(mapper.keys()):
         if key not in kept:
             del mapper[key]
-
-    # Calculate correlation between all new features
-    new_features = pd.DataFrame.from_dict(mapper)
-    corr_matrix = new_features.corr()
-
-    # Find highly correlated features
-    high_corr = (corr_matrix > 0.75) & (corr_matrix < 1.0)
-    drop_cols = []
-    for col in high_corr.columns:
-        if col not in drop_cols:
-            correlated_cols = high_corr.index[high_corr[col]]
-            if len(correlated_cols) > 0:
-                max_corr = corr_matrix.loc[correlated_cols, col].max()
-                max_corr_col = corr_matrix.loc[correlated_cols, col].idxmax()
-                dropped = col
-                print(corr_scores.loc[corr_scores["Feature"] == max_corr_col]["ExcessCorr"])
-                if corr_scores.loc[corr_scores["Feature"] == max_corr_col]["ExcessCorr"] > corr_scores.loc[corr_scores["Feature"] == col]["ExcessCorr"]:
-                    dropped = max_corr_col
-                if dropped not in drop_cols:
-                    drop_cols += correlated_cols.drop(dropped).tolist()
-                    print("Dropping", drop_cols, "with correlation", max_corr, "between: ", max_corr_col, "and", col)
-    # Drop highly correlated features
-    new_features = new_features.drop(drop_cols, axis=1)
-
-    # Return dataframe of kept feature names to feature values
+    
+    # Convert mapper to dataframe
+    new_features = pd.DataFrame().from_dict(mapper)
+    new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
+    
+    # log features then scale everything to mean 0 and std 1
+    new_features = logAndScaleColumns(new_features)
+    
+    # Perform PCA on new features
+    pca = PCA(100).fit(new_features.values)
+    pickle.dump(pca, open("pca.pkl", "wb"))
+    new_features = pca.transform(new_features.values)
+    
+    plt.plot(np.cumsum(pca.explained_variance_ratio_))
+    plt.xlabel('number of components')
+    plt.ylabel('cumulative explained variance')
+    plt.savefig("pca.png")
     return new_features
+    
 
 # The following functions are so shit, just remove them eventually please
 def visualize():
@@ -255,5 +251,7 @@ def created_features_corr():
     plt.colorbar()
     plt.show()
 
-df = calculateNewFeatures()
-df.to_csv("calculated_features.csv", index=False)
+arr = calculateNewFeatures()
+df = pd.DataFrame(arr)
+df = pd.concat([df, pd.read_csv("data/train.csv")["Class"]], axis=1)
+df.to_csv("new_features.csv", index=False)
