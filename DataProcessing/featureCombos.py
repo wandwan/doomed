@@ -104,6 +104,7 @@ def calculateNewFeatures(df, numNewFeaturesKept=100, PCAKept=36):
     # Convert mapper to dataframe
     new_features = pd.DataFrame().from_dict(mapper)
     # new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
+    # new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
     
     # # log features then scale everything to mean 0
     # new_features = logAndScaleColumns(new_features)
@@ -112,7 +113,16 @@ def calculateNewFeatures(df, numNewFeaturesKept=100, PCAKept=36):
     # pca = PCA(PCAKept).fit(new_features.values)
     # pickle.dump(pca, open("pca.pkl", "wb"))
     # new_features = pca.transform(new_features.values)
+    # # Perform PCA on new features
+    # pca = PCA(PCAKept).fit(new_features.values)
+    # pickle.dump(pca, open("pca.pkl", "wb"))
+    # new_features = pca.transform(new_features.values)
     
+    # plt.plot(np.cumsum(pca.explained_variance_ratio_))
+    # print("Explained variance ratios: ", np.cumsum(pca.explained_variance_ratio_))
+    # plt.xlabel('number of components')
+    # plt.ylabel('cumulative explained variance')
+    # plt.savefig("pca.png")
     # plt.plot(np.cumsum(pca.explained_variance_ratio_))
     # print("Explained variance ratios: ", np.cumsum(pca.explained_variance_ratio_))
     # plt.xlabel('number of components')
