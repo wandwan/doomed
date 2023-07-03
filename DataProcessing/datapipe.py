@@ -59,7 +59,7 @@ def pca_clean(input_file, newFeatures=100, PCAKept=36):
     arr : pd.DataFrame = pd.DataFrame(arr)
     for col in arr.columns:
         arr[col] += -arr[col].min()
-    arr = pd.concat([arr, df["Class"], df["Id"]], axis=1)
+    # arr = pd.concat([arr, df["Class"], df["Id"]], axis=1)
     return arr
     
 

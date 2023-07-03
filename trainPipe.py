@@ -3,6 +3,7 @@ import numpy as np
 from splitData import split_data
 import pandas as pd
 import time
+import joblib
 import xgboost as xgb
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -93,7 +94,7 @@ def train(df : pd.DataFrame,
     losses = []
     if trial is not None:
         params = {
-            'learning_rate': trial.suggest_float('learning_rate', .005, 1.00),
+            'learning_rate': .02,
             'min_split_loss': trial.suggest_float('min_split_loss', 0, 1),
             'subsample': trial.suggest_float('subsample', .001, 1.00),
             # 'max_leaves': trial.suggest_int('max_leaves', 2, 512),
@@ -103,7 +104,7 @@ def train(df : pd.DataFrame,
             'reg_lambda': trial.suggest_float('reg_lambda', 1.0, 10.0),
             # 'sampling_method': 'gradient_based', #Alex uncomment this out!
             'grow_policy': 'lossguide',
-            'n_jobs': -1,
+            'n_jobs': 1,
             'objective': 'binary:logistic',
             # 'tree_method': 'gpu_hist', #Alex uncomment this out!
             'eval_metric': 'logloss',
@@ -209,7 +210,7 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     
     # Train XGBoost model
     
-    xgb_params = {'learning_rate': 0.008168061411573882, 
+    xgb_params = {'learning_rate': 0.018168061411573882, 
                   'min_split_loss': 0.5315667826163368, 
                   'subsample': 0.5657155206937886, 
                   'colsample_bytree': 0.18149665124735848, 
@@ -230,25 +231,28 @@ def contrastiveXGBoost(X_train, Y_train, X_val, Y_val, num_iterations, params=No
     res = {}
     evallist = [(dtrain, 'train'), (dval, 'validation')]
 
-    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=150, evals_result=res, verbose_eval=True)
+    model = xgb.train(xgb_params, dtrain, num_boost_round=num_iterations, evals=evallist, early_stopping_rounds=100, evals_result=res, verbose_eval=50)
      # Make predictions on validation set
     y_pred = model.predict(dval)
     y_pred = np.round(y_pred)
     return res['train']['logloss'], res['validation']['logloss'], y_pred, model
 
 # Read in data
+df = pd.read_csv('./data/cleaned_train.csv')
 data_df = pd.read_csv('./data/pca.csv')
+df = pd.concat([df, data_df], axis=1)
 
-models: list[xgb.Booster] = train(data_df, contrastiveXGBoost, plot_loss_curve=True, n_folds=4) # type: ignore
+models: list[xgb.Booster] = train(df, contrastiveXGBoost, plot_loss_curve=True, n_folds=5) # type: ignore
 for i in range(len(models)):
     models[i].save_model(f'contrastive_{i}.json')
 
 # def train_wrapper(trial):
-#     return train(data_df.copy(), contrastiveXGBoost, trial=trial, n_folds=3)
+#     return train(df.copy(), contrastiveXGBoost, trial=trial, n_folds=2)
 # sampler = optuna.samplers.CmaEsSampler()
-# study = optuna.create_study(direction='minimize', sampler=sampler)
-# study.optimize(train_wrapper, n_trials=100, n_jobs=24, show_progress_bar=True)
+# study = optuna.create_study(study_name="10-fold-dir",direction='minimize', sampler=sampler)
+# study.optimize(train_wrapper, n_trials=96, n_jobs=48, show_progress_bar=True)
 # print(study.best_params)
 # print(study.best_trial)
 # print(study.best_value)
 # print(study.direction)
+# joblib.dump(study, 'study.pkl')
