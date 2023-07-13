@@ -70,7 +70,7 @@ def generate_combo_features(df, retVisu=False):
             corr, _ = pointbiserialr(df["Class"], col[1])
             name1, name2 = re.split("/|\*", col[0])
             name1, name2 = name1[:2:], name2[:2:]
-            corr_scores.append((col[0], abs(corr) - ((abs(col_corrs[name1]) + abs(col_corrs[name2])))))
+            corr_scores.append((col[0], abs(corr ** 2) - ((abs(col_corrs[name1]) ** 2 + abs(col_corrs[name2]) ** 2))))
         corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "ExcessCorr"]).sort_values(by="ExcessCorr", ascending=False).reset_index(drop=True)
         if not retVisu:
             return corr_scores
