@@ -39,7 +39,7 @@ def balanced_log_loss(y_true, y_pred) -> float:
   return logloss
 
 def build_pipeline():
-    clf = make_pipeline(SimpleImputer(), PowerTransformer(method='box-cox'), PCA(),
+    clf = make_pipeline(SimpleImputer(), PowerTransformer(method='box-cox'),
                          SVR(kernel='rbf', max_iter=10_000))
     
     logger.info(clf)
