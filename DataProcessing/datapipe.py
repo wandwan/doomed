@@ -1,12 +1,6 @@
 import pandas as pd
-from convToNum import convert_to_numeric
-from fillNan import fill_na_with_kmeans
-from makeInt import convert_to_integer
-from makeNorm import normalize_df
-from featureCombos import combo_features
+from transforms import *
 from featureCombos import calculateNewFeatures
-from correlatedProcess import remove_correlated_columns
-from generatePairs import generate_pairs
 
 input_file = "./data/train.csv"
 output_file = "./data/cleaned_train.csv"
@@ -25,10 +19,10 @@ def tree_clean(input_file):
     df = convert_to_numeric(df)
 
     # Fill NaN values using kmeans
-    df = fill_na_with_kmeans(df)
+    df = fill_nans(df)
     
     # calculate new features
-    df2 = calculateNewFeatures(df, 100, 30)
+    df2 = calculateNewFeatures(df, 100)
     
     # Convert all columns to integer
     df1 = convert_to_integer(df)
@@ -38,41 +32,34 @@ def tree_clean(input_file):
     
     df = pd.concat([df1, df2, df["Class"], df["Id"]], axis=1)
 
-    
-    # Normalize the data
-    # df = normalize_df(df, ['Class', 'Id', 'EJ'])
-
-
     # Remove correlated columns
     df = remove_correlated_columns(df)
-
-    # Create new features
-    # df = combo_features(df, selected)
     
     return df.copy()
-def pca_clean(input_file, newFeatures=100, PCAKept=36):
-    ### Returns a non-negative dataset that's been log-scaled (then PCA and added with new features).
-    # Load data into dataframe
-    df = pd.read_csv(input_file)
 
+def pca_clean(input_file):
+    # Read input file into a dataframe
+    df = pd.read_csv(input_file)
+    
     # Remove whitespace from column names
     df.columns = df.columns.str.replace(' ', '')
-    
-    from convToNum import convert_to_numeric
+
     # Convert all columns to numbers
     df = convert_to_numeric(df)
 
-    # Fill nan's
-    from fillNan import fill_na_with_kmeans
-    df = fill_na_with_kmeans(df)
+    # Fill NaN values using kmeans
+    df = fill_nans(df)
     
-    arr = calculateNewFeatures(df, newFeatures, PCAKept)
-    arr : pd.DataFrame = pd.DataFrame(arr)
-    for col in arr.columns:
-        arr[col] += -arr[col].min()
-    # arr = pd.concat([arr, df["Class"], df["Id"]], axis=1)
-    return arr
+    # calculate new features
+    df = calculateNewFeatures(df, 100)
     
+    # Box-Cox transform
+    df = normalize(df, ["EJ"], "box-cox")
+    
+    # PCA
+    df = pca(df, n_components=0.98)
+    
+    return df.copy()
 
 tree_clean(input_file).to_csv(output_file, index=False)
-# pca_clean(input_file).to_csv("data/pca.csv", index=False)
+pca_clean(input_file).to_csv("data/pca.csv", index=False)

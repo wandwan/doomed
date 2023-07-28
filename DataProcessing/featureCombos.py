@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from makeNorm import logAndScaleColumns
+from DataProcessing.norm import logAndScaleColumns
 import pickle
 import re
 
@@ -32,7 +32,7 @@ def combo_features(df, selected):
             df[feature] = col1 * col2
     return df.copy()
 
-def generate_combo_features(df, retVisu=False):
+def generate_combo_features(df: pd.DataFrame, verbose=False) -> pd.DataFrame | tuple[pd.DataFrame, dict[str, float], dict[str, pd.DataFrame]]:
         # Create a list of all possible feature combinations
         features = df.columns
         combos = []
@@ -72,62 +72,35 @@ def generate_combo_features(df, retVisu=False):
             name1, name2 = name1[:2:], name2[:2:]
             corr_scores.append((col[0], abs(corr ** 2) - ((abs(col_corrs[name1]) ** 2 + abs(col_corrs[name2]) ** 2))))
         corr_scores = pd.DataFrame(corr_scores, columns=["Feature", "ExcessCorr"]).sort_values(by="ExcessCorr", ascending=False).reset_index(drop=True)
-        if not retVisu:
-            return corr_scores
+        
         # corr_scores contains the excess correlation of each feature combination
         # col_corrs contains the point_biserial correlation of each feature with df["Class"]
         # mapper maps the feature name to the actual generated feature vals (string to df[col])
-        return corr_scores, col_corrs, mapper
+        if verbose:
+            return corr_scores, col_corrs, mapper
+        return corr_scores
 
-def calculateNewFeatures(df, numNewFeaturesKept=100, PCAKept=36):
+def calculateNewFeatures(df, numNewFeaturesKept=100):
     # Generate new features
-    corr_scores, _, mapper = generate_combo_features(df, True)
+    corr_scores: pd.DataFrame
+    mapper: dict[str, pd.DataFrame]
+    corr_scores, _, mapper = generate_combo_features(df, True) # type: ignore
     print("Generated new features")
     print(corr_scores["ExcessCorr"].head(60))
 
     # Keep only the top 1000 rows
     kept = []
     for idx, row in corr_scores.iterrows():
-        if idx > numNewFeaturesKept:
+        if int(idx) > numNewFeaturesKept: # type: ignore
             break
         kept.append(row["Feature"])
         for i in range(len(kept) - 1):
-            if mapper[kept[-1]].corr(mapper[kept[i]]) > .75:
+            if pd.concat([mapper[kept[-1]], mapper[kept[i]]], axis=0).corr() > .75:
                 kept.pop()
                 break
-    print(len(kept))
-    # Remove all columns that are not in the top 500
-    for key in list(mapper.keys()):
-        if key not in kept:
-            del mapper[key]
     
     # Convert mapper to dataframe
-    new_features = pd.DataFrame().from_dict(mapper)
-    # new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
-    # new_features = pd.concat([df.drop(["Id", "Class"], axis=1), new_features], axis=1)
-    
-    # # log features then scale everything to mean 0
-    # new_features = logAndScaleColumns(new_features)
-    
-    # # Perform PCA on new features
-    # pca = PCA(PCAKept).fit(new_features.values)
-    # pickle.dump(pca, open("pca.pkl", "wb"))
-    # new_features = pca.transform(new_features.values)
-    # # Perform PCA on new features
-    # pca = PCA(PCAKept).fit(new_features.values)
-    # pickle.dump(pca, open("pca.pkl", "wb"))
-    # new_features = pca.transform(new_features.values)
-    
-    # plt.plot(np.cumsum(pca.explained_variance_ratio_))
-    # print("Explained variance ratios: ", np.cumsum(pca.explained_variance_ratio_))
-    # plt.xlabel('number of components')
-    # plt.ylabel('cumulative explained variance')
-    # plt.savefig("pca.png")
-    # plt.plot(np.cumsum(pca.explained_variance_ratio_))
-    # print("Explained variance ratios: ", np.cumsum(pca.explained_variance_ratio_))
-    # plt.xlabel('number of components')
-    # plt.ylabel('cumulative explained variance')
-    # plt.savefig("pca.png")
+    new_features = pd.DataFrame().from_dict({key: mapper[key] for key in kept})
     return new_features
     
 
@@ -207,6 +180,7 @@ def visualize():
     plt.show()
 
 # calculate the correlation between any 2 combination of created features
+# This function is a piece of shit, ignore.
 def created_features_corr():
     # Read in train.csv
     df = pd.read_csv("data/train.csv")
