@@ -17,7 +17,7 @@ def generate_pairs_for_row(i,fraction, frac, features, n, add_noise, labels):
             row_pairs[idx] = np.concatenate([features_i - features_j, features_i / np.clip(features_j, 1e-6, None), features_j])
         else:
             # Perform element-wise addition, subtraction, and multiplication of the features of two rows
-            row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / np.clip(features[j], 1e-6, None), features[j]], dtype=float)
+            row_pairs[idx] = np.concatenate([features[i] - features[j], features[i] / (1 if features[j] < 1e-7 else features[j]), features[j]], dtype=float)
             # row_pairs[idx] = np.concatenate([features[i] - features[j], features[j]], dtype=float)
 
         # Add the XOR of the two classes to the labels array
@@ -58,7 +58,7 @@ def generate_pairs_for_val_row(i, features, labels, val_features, val_labels):
     # Generate pairs for each row in parallel
     for j in range(n):
         # Perform element-wise addition, subtraction, and multiplication of the features of two rows
-        pairs[j] = np.concatenate([features[j] - val_features[i], features[j] / np.clip(val_features[i], 1e-6, None), val_features[i]], dtype=float)
+        pairs[j] = np.concatenate([features[j] - val_features[i], features[j] / (1 if val_features[i] < 1e-7 else val_features), val_features[i]], dtype=float)
         # Add the XOR of the two classes to the labels array
         labels_array[j][labels[j] ^ val_labels[i]] = 1
     return pairs, labels_array, i
