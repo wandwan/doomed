@@ -61,11 +61,12 @@ def generate_pairs_for_val_row(i, features, labels, val_features, val_labels):
         pairs[j] = np.concatenate([features[j] - val_features[i], features[j] / np.clip(val_features[i], 1e-6, None), val_features[i]], dtype=float)
         # Add the XOR of the two classes to the labels array
         labels_array[j][labels[j] ^ val_labels[i]] = 1
+    return pairs, labels_array, i
 
 def generate_pairs_for_validation(train_features, val_features, train_labels, val_labels):
     # Get the number of rows in the features array
     n = train_features.shape[0]
-    frac = n
+    frac = val_features.shape[0]
     # Create an empty numpy array to store the pairs
     pairs = np.empty((n * frac , 3 * train_features.shape[1]))
     
@@ -73,11 +74,12 @@ def generate_pairs_for_validation(train_features, val_features, train_labels, va
     labels_array = np.zeros((n * frac, 2), dtype=np.int32)
     
     # Generate pairs for each row in parallel
-    results = Parallel(n_jobs=-1)(delayed(generate_pairs_for_val_row)(i, train_features, train_labels, val_features, val_labels) for i in range(n)) #type: ignore
+    results = Parallel(n_jobs=-1)(delayed(generate_pairs_for_val_row)(i, train_features, train_labels, val_features, val_labels) for i in range(len(val_features))) #type: ignore
     results.sort(key=lambda x: x[2])
     # Combine the results into the final pairs and labels arrays
     idx = 0
     for row_pairs, row_labels, _ in results:
-        pairs[idx:idx+frac] = row_pairs
-        labels_array[idx:idx+frac] = row_labels
-        idx += frac
+        pairs[idx:idx+n] = row_pairs
+        labels_array[idx:idx+n] = row_labels
+        idx += n
+    return pairs, labels_array

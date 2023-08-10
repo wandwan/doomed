@@ -5,6 +5,8 @@ import numpy as np
 import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from splitData import split_data
+from DataProcessing.postprocess import *
+from sklearn.metrics import log_loss
 
 def leaveOneOut(df: pd.DataFrame, model, criterion):
     """
@@ -45,7 +47,7 @@ def kFoldCV(df: pd.DataFrame, model, criterion, k=5):
     return np.mean(losses), np.std(losses)
 
 class contrastiveXGBoost:
-    def fit(self, X_train, Y_train, X_val=None, Y_val=None, num_iterations=2000, verbose=True, params = None):
+    def fit(self, X_train, Y_train, X_val=None, Y_val=None, num_iterations=100, verbose=True, params = None):
         if X_val is None or Y_val is None:
             # Split data into train and validation sets
             X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=42, stratify=Y_train)
@@ -55,8 +57,8 @@ class contrastiveXGBoost:
         self.Y_train = Y_train
         
         # Generate pairs
+        X_val, Y_val = generate_pairs_for_validation(X_train, X_val, Y_train, Y_val)
         X_train, Y_train = generate_pairs(X_train, Y_train, add_noise=False)
-        X_val, Y_val = generate_pairs_for_validation(X_train, X_val, Y_train, Y_val, add_noise=False)
         # Shuffle X_train and Y_train together
         perm = np.random.RandomState(seed=42).permutation(len(X_train))
         X_train = X_train[perm]
@@ -88,7 +90,8 @@ class contrastiveXGBoost:
     
     def predict(self, X_test):
         # Generate pairs
-        Y_test = np.zeros(len(X_test))
+        Y_test = np.zeros(len(X_test),dtype=np.int32)
+        length = len(X_test)
         X_test, Y_test = generate_pairs_for_validation(self.X_train, X_test, self.Y_train, Y_test)
         n = len(self.X_train)
         # Predict
@@ -97,11 +100,11 @@ class contrastiveXGBoost:
         
         final_preds = []
         # Get average prediction
-        for i in range(len(X_test)):
+        for i in range(length):
             avg = [0, 0]
             elems = [0,0]
             for j in range(i * n, (i + 1) * n):
-                if Y_test[j % n] == 1:
+                if self.Y_train[j % n] == 1:
                     avg[1] += preds[j]
                     elems[1] += 1
                 else:
@@ -111,4 +114,5 @@ class contrastiveXGBoost:
             final_preds.append((avg[1] / elems[1] + (1 - avg[0] / elems[0])) / 2)
         return np.array(final_preds)
             
-    
+score = kFoldCV(pd.read_csv("./data/cleaned_train.csv"), contrastiveXGBoost(), log_loss)
+print(score)
