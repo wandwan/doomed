@@ -41,15 +41,15 @@ def kFoldCV(df: pd.DataFrame, model, criterion, k=5):
         # Get the prediction
         pred = model.predict(X_val.to_numpy())
         # turn y_val into one hot encode
-        y_val = np.array([[1, 0] if y == 0 else [0, 1] for y in y_val])
+        y_val = np.array([[1, 0] if y == 0 else [0, 1] for y in y_val], dtype=np.int32)
         # Get the loss
-        loss = criterion(pred, y_val)
+        loss = criterion(y_val, pred)
         # Return the loss
         losses.append(loss)
     return np.mean(losses), np.std(losses)
 
 class contrastiveXGBoost:
-    def fit(self, X_train, Y_train, X_val=None, Y_val=None, num_iterations=100, verbose=True, params = None):
+    def fit(self, X_train, Y_train, X_val=None, Y_val=None, num_iterations=8000, verbose=True, params = None):
         if X_val is None or Y_val is None:
             # Split data into train and validation sets
             X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=42, stratify=Y_train)
@@ -104,17 +104,15 @@ class contrastiveXGBoost:
         # Get average prediction
         for i in range(length):
             avg = [0, 0]
-            elems = [0,0]
             for j in range(i * n, (i + 1) * n):
                 if self.Y_train[j % n] == 1:
-                    avg[1] += preds[j]
-                    elems[1] += 1
+                    avg[1] += preds[j][1]
+                    avg[0] += preds[j][0]
                 else:
-                    avg[0] += preds[j]
-                    elems[0] += 1
+                    avg[1] += preds[j][0]
+                    avg[0] += preds[j][1]
             
-            final_preds.append((avg[1] / elems[1] + (1 - avg[0] / elems[0])) / 2)
-            final_preds[-1] = (1 - final_preds[-1], final_preds[-1])
+            final_preds.append([avg[0] / n, avg[1] / n])
         return np.array(final_preds)
             
 score = kFoldCV(pd.read_csv("./data/cleaned_train.csv"), contrastiveXGBoost(), log_loss)
