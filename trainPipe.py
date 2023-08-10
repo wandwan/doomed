@@ -40,6 +40,8 @@ def kFoldCV(df: pd.DataFrame, model, criterion, k=5):
         model.fit(X_train.to_numpy(), y_train.to_numpy(), X_val.to_numpy(), y_val.to_numpy())
         # Get the prediction
         pred = model.predict(X_val.to_numpy())
+        # turn y_val into one hot encode
+        y_val = np.array([[1, 0] if y == 0 else [0, 1] for y in y_val])
         # Get the loss
         loss = criterion(pred, y_val)
         # Return the loss
@@ -112,6 +114,7 @@ class contrastiveXGBoost:
                     elems[0] += 1
             
             final_preds.append((avg[1] / elems[1] + (1 - avg[0] / elems[0])) / 2)
+            final_preds[-1] = (1 - final_preds[-1], final_preds[-1])
         return np.array(final_preds)
             
 score = kFoldCV(pd.read_csv("./data/cleaned_train.csv"), contrastiveXGBoost(), log_loss)
